@@ -1,0 +1,137 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings · IronScout</title><link rel="stylesheet" href="/app.css">
+<style>
+  .machines { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:8px; }
+  .machines label { display:flex; gap:10px; align-items:center; background:#1c2029; border:1px solid var(--line); border-radius:10px; padding:10px 12px; cursor:pointer; font-size:15px; }
+  .machines label:has(input:checked) { border-color:var(--accent); }
+  .machines input { width:18px; height:18px; min-width:0; accent-color:var(--accent); }
+  .field { display:flex; flex-direction:column; gap:4px; min-width:160px; } .field span { color:var(--muted); font-size:13px; }
+  .radios { display:flex; gap:8px; flex-wrap:wrap; } .radios label { background:#1c2029; border:1px solid var(--line); border-radius:999px; padding:8px 14px; cursor:pointer; }
+  .radios label:has(input:checked) { border-color:var(--accent); color:var(--accent); } .radios input { display:none; }
+  .savebar { position:sticky; bottom:0; background:var(--bg); border-top:1px solid var(--line); padding:12px 24px; display:flex; gap:12px; align-items:center; }
+</style></head><body>
+<header id="hdr"></header>
+<div id="subscribe-banner" class="banner" style="display:none">
+  <div><b>Start your subscription</b> to see deals and get alerts. <span id="trial-note"></span></div>
+  <button class="primary" id="subscribe">Subscribe</button>
+</div>
+<main>
+  <div class="section" id="plan"><h2>Plan</h2><div class="card"><div id="plan-body" class="muted">Loading…</div><div class="row" id="plan-actions"></div></div></div>
+
+  <div class="section">
+    <h2>Machines I want alerts for</h2>
+    <p class="muted small">Check every machine you want to hear about. Alerts use the location, price and margin settings below.</p>
+    <div class="card">
+      <div class="machines" id="machines"></div>
+      <div class="row" style="margin-top:10px"><span class="muted small">Need one that isn't listed?</span>
+        <input id="req-term" placeholder="e.g. frac pump" style="min-width:180px"><button id="req-btn">Request it</button><span id="req-msg" class="ok small"></span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>What counts as a deal for me</h2>
+    <div class="card"><div class="row">
+      <div class="field"><span>States (blank = anywhere in US)</span><input id="states" placeholder="TX, OK, LA"></div>
+      <div class="field"><span>At least this % below market</span><input id="min_discount" type="number" min="0" max="90" step="1"></div>
+      <div class="field"><span>At least this much margin ($)</span><input id="min_margin" type="number" min="0" step="500"></div>
+      <div class="field"><span>Max price ($, optional)</span><input id="max_price" type="number" min="0" step="1000"></div>
+      <div class="field"><span>Newest year I'd go back to (optional)</span><input id="min_year" type="number" min="1970" max="2030"></div>
+    </div></div>
+  </div>
+
+  <div class="section">
+    <h2>How to alert me</h2>
+    <div class="card">
+      <div class="row">
+        <div class="field"><span>Send me</span>
+          <div class="radios" id="channel">
+            <label><input type="radio" name="channel" value="email">Email</label>
+            <label><input type="radio" name="channel" value="sms">Text</label>
+            <label><input type="radio" name="channel" value="both">Both</label>
+            <label><input type="radio" name="channel" value="none">Nothing</label>
+          </div></div>
+        <div class="field"><span>Cell number for texts</span><input id="phone" type="tel" placeholder="(432) 555-1234"></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div class="field"><span>How often</span>
+          <div class="radios" id="frequency">
+            <label><input type="radio" name="frequency" value="realtime">As they're found</label>
+            <label><input type="radio" name="frequency" value="hourly">Hourly</label>
+            <label><input type="radio" name="frequency" value="daily">Once a day</label>
+            <label><input type="radio" name="frequency" value="weekly">Once a week</label>
+          </div></div>
+      </div>
+      <div class="muted small" style="margin-top:8px" id="sms-note"></div>
+    </div>
+  </div>
+
+  <div class="section"><h2>Saved deals</h2><div id="saved" class="grid"></div></div>
+
+  <div class="section"><h2>Password</h2><div class="card"><div class="row">
+    <input id="pw-cur" type="password" placeholder="Current password"><input id="pw-new" type="password" placeholder="New password (8+)"><button id="pw-btn">Change</button><span id="pw-msg" class="err"></span>
+  </div></div></div>
+</main>
+<div class="savebar"><button class="primary" id="save" style="font-size:16px;padding:12px 26px">Save settings</button><span id="save-msg" class="ok"></span></div>
+<script src="/app.js"></script>
+<script>
+let user;
+const radio = (name) => document.querySelector(`input[name=${name}]:checked`)?.value;
+const setRadio = (name, v) => { const el = document.querySelector(`input[name=${name}][value="${v}"]`); if (el) el.checked = true; };
+
+async function load() {
+  user = await requireUser();
+  $('hdr').innerHTML = renderHeader(user, '/account.html'); wireLogout();
+  const q = new URLSearchParams(location.search);
+
+  const st = await api('/api/billing/status');
+  if (user.role !== 'subscriber') {
+    $('plan-body').innerHTML = `Signed in as <b>${esc(user.role)}</b>. No subscription needed.`;
+  } else {
+    const label = { none: 'No subscription yet', trialing: 'Free trial', active: 'Active', past_due: 'Payment failed — update your card', canceled: 'Canceled', unpaid: 'Unpaid' }[st.subscription_status] || st.subscription_status;
+    const until = st.subscription_ends_at ? ` · access until ${new Date(st.subscription_ends_at).toLocaleDateString()}` : '';
+    $('plan-body').innerHTML = `<b>${esc(label)}</b>${until}` + (q.get('subscribed') ? ' <span class="ok">— thanks, you\'re in. Give it a few seconds and refresh if needed.</span>' : '');
+    if (!st.billing_configured) $('plan-actions').innerHTML = `<span class="muted small">Billing isn't set up on this server yet. Ask the admin for access.</span>`;
+    else if (st.has_access && st.has_stripe) { $('plan-actions').innerHTML = `<button id="portal">Manage subscription / card</button>`; $('portal').onclick = async () => { location.href = (await api('/api/billing/portal', { method: 'POST' })).url; }; }
+    else { $('subscribe-banner').style.display = ''; $('trial-note').textContent = st.trial_days > 0 ? `${st.trial_days}-day free trial, cancel anytime.` : ''; $('subscribe').onclick = async () => { location.href = (await api('/api/billing/checkout', { method: 'POST' })).url; }; }
+  }
+
+  const s = await api('/api/settings');
+  $('states').value = (s.states || []).join(', ');
+  $('min_discount').value = s.min_discount ?? 5; $('min_margin').value = s.min_margin ?? 2500;
+  $('max_price').value = s.max_price || ''; $('min_year').value = s.min_year || ''; $('phone').value = s.phone || '';
+  setRadio('channel', s.channel || 'email'); setRadio('frequency', s.frequency || 'daily');
+  $('sms-note').textContent = s.sms_available ? 'Texts show the top 3 deals and a link; email has the full list.' : 'Texting isn\'t switched on for this server yet — email works now, texts will start when it is.';
+
+  if (user.has_access) {
+    const [prods, wl] = await Promise.all([api('/api/products'), api('/api/watchlists')]);
+    const mine = new Set(wl.watchlists.map(w => w.product_id));
+    $('machines').innerHTML = prods.products.map(p => `<label><input type="checkbox" value="${p.id}" ${mine.has(p.id) ? 'checked' : ''}><span>${esc(p.name)}${p.us_median ? `<br><span class="muted small">median ${money(p.us_median)}</span>` : ''}</span></label>`).join('')
+      || '<div class="muted">No machines tracked yet — request one below.</div>';
+    const saved = await api('/api/watchlists/saved');
+    $('saved').innerHTML = saved.deals.length ? saved.deals.map(d => dealCard(d, { saved: true })).join('') : '<div class="empty">Nothing saved yet. Hit "Save" on a deal.</div>';
+  } else {
+    $('machines').innerHTML = '<div class="muted">Subscribe to pick machines.</div>';
+    $('saved').innerHTML = '';
+  }
+}
+
+$('save').onclick = async () => {
+  $('save-msg').className = 'ok'; $('save-msg').textContent = 'Saving…';
+  try {
+    await api('/api/settings', { method: 'PUT', body: {
+      states: $('states').value, min_discount: $('min_discount').value, min_margin: $('min_margin').value,
+      max_price: $('max_price').value || null, min_year: $('min_year').value || null,
+      channel: radio('channel'), frequency: radio('frequency'), phone: $('phone').value } });
+    if (user.has_access) {
+      const ids = [...document.querySelectorAll('#machines input:checked')].map(i => Number(i.value));
+      await api('/api/watchlists', { method: 'PUT', body: { product_ids: ids } });
+    }
+    $('save-msg').textContent = 'Saved.'; setTimeout(() => $('save-msg').textContent = '', 2500);
+  } catch (e) { $('save-msg').className = 'err'; $('save-msg').textContent = e.message; }
+};
+$('req-btn').onclick = async () => { try { const r = await api('/api/watchlists/request', { method: 'POST', body: { term: $('req-term').value } }); $('req-msg').textContent = r.message; $('req-term').value = ''; if (r.tracked) load(); } catch (e) { $('req-msg').textContent = e.message; } };
+async function saveDeal(id) { await api('/api/watchlists/saved/' + id, { method: 'POST' }); load(); }
+async function unsaveDeal(id) { await api('/api/watchlists/saved/' + id, { method: 'DELETE' }); load(); }
+$('pw-btn').onclick = async () => { $('pw-msg').className = 'err'; try { await api('/api/auth/password', { method: 'POST', body: { current: $('pw-cur').value, next: $('pw-new').value } }); $('pw-msg').className = 'ok'; $('pw-msg').textContent = 'Password changed.'; $('pw-cur').value = $('pw-new').value = ''; } catch (e) { $('pw-msg').textContent = e.message; } };
+load().catch(e => { if (!['login', 'subscribe'].includes(e.message)) console.error(e); });
+</script></body></html>

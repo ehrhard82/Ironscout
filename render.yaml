@@ -1,0 +1,41 @@
+# Render "Blueprint": lets Render create the web service from this repo in one click.
+# Dashboard -> New -> Blueprint -> pick the repo. Then fill in the env vars it asks for.
+# Free plan notes: sleeps after 15 idle minutes (first visit then takes ~1 min), and
+# cannot run its own scheduler — use cron-job.org against /api/cron/* (see DEPLOY.md).
+services:
+  - type: web
+    name: ironscout
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false          # paste your Neon connection string
+      - key: APP_URL
+        sync: false          # https://ironscout.onrender.com or your domain
+      - key: CRON_SECRET
+        generateValue: true
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PRICE_ID
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: EBAY_CLIENT_ID
+        sync: false
+      - key: EBAY_CLIENT_SECRET
+        sync: false
+      - key: APIFY_TOKEN
+        sync: false
+      - key: APIFY_SOURCES
+        value: govdeals,ironplanet
+      - key: TRACKED_PRODUCTS
+        value: semi truck,wheel loader,excavator,dozer,winch truck,frac pump,drilling rig,skid steer

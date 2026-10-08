@@ -1,0 +1,20 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My machines · IronScout</title><link rel="stylesheet" href="/app.css"></head><body>
+<header id="hdr"></header>
+<div class="bar"><div><b id="count">…</b> deals across the machines you watch, filtered by your settings. <a href="/account.html" class="small">Change machines or settings</a></div></div>
+<main><div id="list" class="grid"><div class="empty">Loading…</div></div></main>
+<script src="/app.js"></script>
+<script>
+async function load() {
+  const user = await requireUser();
+  if (!user.has_access) { location.href = '/account.html?subscribe=1'; return; }
+  $('hdr').innerHTML = renderHeader(user, '/mine.html'); wireLogout();
+  const r = await api('/api/watchlists/deals');
+  $('count').textContent = r.count;
+  $('list').innerHTML = r.deals.length ? r.deals.map(d => dealCard(d, { saved: d.saved })).join('')
+    : '<div class="empty">Nothing right now. You\'ll be alerted when something shows up. <a href="/account.html">Add machines</a> or loosen your settings.</div>';
+}
+async function saveDeal(id) { await api('/api/watchlists/saved/' + id, { method: 'POST' }); load(); }
+async function unsaveDeal(id) { await api('/api/watchlists/saved/' + id, { method: 'DELETE' }); load(); }
+load().catch(e => { if (!['login', 'subscribe'].includes(e.message)) console.error(e); });
+</script></body></html>

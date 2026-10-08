@@ -1,0 +1,47 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin · IronScout</title><link rel="stylesheet" href="/app.css"></head><body>
+<header id="hdr"></header>
+<main>
+  <div class="section"><h2>Fetch listings</h2><div class="card"><div class="row">
+    <input id="ingest-term" placeholder="machine to fetch (e.g. dozer)" list="products"><datalist id="products"></datalist>
+    <button class="primary" id="ingest-btn">Fetch now</button>
+    <button id="recalc-btn" title="Rebuild deals from existing listings without fetching">Recalculate deals</button>
+    <button id="alerts-btn" title="Send any due hourly/daily/weekly digests now">Send due alerts</button>
+    <span id="ingest-msg" class="ok small"></span>
+  </div><div class="muted small" style="margin-top:8px">Fetching costs Apify credit per listing. The scheduler already does this for TRACKED_PRODUCTS; use this for one-offs.</div></div></div>
+
+  <div class="section"><h2>Requests from subscribers</h2><div class="card"><table id="requests"><thead><tr><th>Machine</th><th>From</th><th>When</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div></div>
+
+  <div class="section"><h2>Users</h2><div class="card">
+    <div class="row" style="margin-bottom:10px"><input id="nu-email" placeholder="email"><input id="nu-pw" placeholder="password (8+)"><input id="nu-name" placeholder="name" style="min-width:120px">
+      <select id="nu-role"><option>subscriber</option><option>broker</option><option>admin</option></select><button id="nu-btn">Create account</button><span id="nu-msg" class="err small"></span></div>
+    <table id="users"><thead><tr><th>Email</th><th>Role</th><th>Subscription</th><th>Machines</th><th>Last login</th><th></th></tr></thead><tbody></tbody></table>
+  </div></div>
+
+  <div class="section"><h2>Recent ingest runs</h2><div class="card"><table id="runs"><thead><tr><th>When</th><th>Machine</th><th>Source</th><th>Fetched</th><th>New</th><th>Error</th></tr></thead><tbody></tbody></table></div></div>
+</main>
+<script src="/app.js"></script>
+<script>
+async function load() {
+  const user = await requireUser();
+  if (user.role !== 'admin') { location.href = '/'; return; }
+  $('hdr').innerHTML = renderHeader(user, '/admin.html'); wireLogout();
+  const [prods, reqs, users, runs] = await Promise.all([api('/api/products'), api('/api/admin/requests'), api('/api/admin/users'), api('/api/admin/runs')]);
+  $('products').innerHTML = prods.products.map(p => `<option value="${esc(p.name)}">`).join('');
+  $('requests').querySelector('tbody').innerHTML = reqs.requests.map(r => `<tr><td>${esc(r.term)}</td><td>${esc(r.email || '—')}</td><td>${new Date(r.created_at).toLocaleDateString()}</td><td>${r.status}</td>
+    <td>${r.status === 'pending' ? `<button onclick="act('/api/admin/requests/${r.id}/approve')">Approve & fetch</button> <button onclick="act('/api/admin/requests/${r.id}/reject')">Reject</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">None</td></tr>';
+  $('users').querySelector('tbody').innerHTML = users.users.map(u => `<tr><td>${esc(u.email)}<br><span class="muted small">${esc(u.name || '')}</span></td>
+    <td><select onchange="patchUser(${u.id},{role:this.value})"><option ${u.role==='subscriber'?'selected':''}>subscriber</option><option ${u.role==='broker'?'selected':''}>broker</option><option ${u.role==='admin'?'selected':''}>admin</option></select></td>
+    <td>${esc(u.subscription_status)}${u.subscription_ends_at ? `<br><span class="muted small">until ${new Date(u.subscription_ends_at).toLocaleDateString()}</span>` : ''}</td>
+    <td>${u.watchlists}</td><td class="muted small">${u.last_login ? new Date(u.last_login).toLocaleString() : '—'}</td>
+    <td>${u.role === 'subscriber' && !['active','trialing'].includes(u.subscription_status) ? `<button onclick="patchUser(${u.id},{subscription_status:'active',subscription_ends_at:'${new Date(Date.now()+365*86400000).toISOString()}'})" title="Give free access for a year">Comp 1 yr</button>` : ''}</td></tr>`).join('');
+  $('runs').querySelector('tbody').innerHTML = runs.runs.map(r => `<tr><td class="small">${new Date(r.started_at).toLocaleString()}</td><td>${esc(r.product || '')}</td><td>${esc(r.source)}</td><td>${r.fetched}</td><td>${r.inserted}</td><td class="small" style="color:var(--warn)">${esc(r.error || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No runs yet</td></tr>';
+}
+async function act(path, body) { try { await api(path, { method: 'POST', body }); load(); } catch (e) { alert(e.message); } }
+async function patchUser(id, body) { try { await api('/api/admin/users/' + id, { method: 'PATCH', body }); load(); } catch (e) { alert(e.message); } }
+$('ingest-btn').onclick = async () => { const t = $('ingest-term').value.trim(); if (!t) return; try { await api('/api/admin/ingest', { method: 'POST', body: { product: t } }); $('ingest-msg').textContent = `Fetching "${t}"… check runs in a minute.`; } catch (e) { alert(e.message); } };
+$('recalc-btn').onclick = async () => { const r = await api('/api/admin/recalculate', { method: 'POST' }); $('ingest-msg').textContent = r.results.map(x => `${x.product}: ${x.deals} deals`).join(' · '); };
+$('alerts-btn').onclick = async () => { const r = await api('/api/admin/alerts/run', { method: 'POST' }); $('ingest-msg').textContent = `${r.sent} sent, ${r.skipped_not_due} not due yet`; };
+$('nu-btn').onclick = async () => { $('nu-msg').textContent = ''; try { await api('/api/admin/users', { method: 'POST', body: { email: $('nu-email').value, password: $('nu-pw').value, name: $('nu-name').value, role: $('nu-role').value } }); $('nu-email').value = $('nu-pw').value = $('nu-name').value = ''; load(); } catch (e) { $('nu-msg').textContent = e.message; } };
+load().catch(e => { if (!['login', 'subscribe'].includes(e.message)) console.error(e); });
+</script></body></html>

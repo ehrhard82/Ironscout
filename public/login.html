@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Log in · IronScout</title><link rel="stylesheet" href="/app.css"></head><body>
+<header><h1><a href="/">Iron<span>Scout</span></a></h1></header>
+<div class="auth">
+  <h2>Log in</h2><p class="sub">Below-market heavy equipment, found for you.</p>
+  <form id="f">
+    <input id="email" type="email" placeholder="Email" autocomplete="email" required>
+    <input id="password" type="password" placeholder="Password" autocomplete="current-password" required>
+    <div class="err" id="err"></div>
+    <button class="primary" type="submit">Log in</button>
+  </form>
+  <div class="foot">New here? <a href="/signup.html">Create an account</a> · <a href="/reset.html">Forgot password</a></div>
+</div>
+<script src="/app.js"></script>
+<script>
+$('f').onsubmit = async (e) => {
+  e.preventDefault(); $('err').textContent = '';
+  try {
+    await api('/api/auth/login', { method: 'POST', quiet: true, body: { email: $('email').value, password: $('password').value } });
+    location.href = new URLSearchParams(location.search).get('next') || '/';
+  } catch (err) { $('err').textContent = err.message; }
+};
+</script></body></html>

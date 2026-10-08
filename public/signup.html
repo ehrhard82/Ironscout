@@ -1,0 +1,25 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign up · IronScout</title><link rel="stylesheet" href="/app.css"></head><body>
+<header><h1><a href="/">Iron<span>Scout</span></a></h1></header>
+<div class="auth">
+  <h2>Create your account</h2><p class="sub">Watch the machines you care about. Get emailed when one is priced under market.</p>
+  <form id="f">
+    <input id="name" placeholder="Name (optional)" autocomplete="name">
+    <input id="email" type="email" placeholder="Email" autocomplete="email" required>
+    <input id="password" type="password" placeholder="Password (8+ characters)" autocomplete="new-password" minlength="8" required>
+    <div class="err" id="err"></div>
+    <button class="primary" type="submit">Create account</button>
+    <div class="muted small">By signing up you agree to the <a href="/terms.html">terms</a> and <a href="/privacy.html">privacy policy</a>. IronScout surfaces listings; it does not inspect equipment.</div>
+  </form>
+  <div class="foot">Already have an account? <a href="/login.html">Log in</a></div>
+</div>
+<script src="/app.js"></script>
+<script>
+$('f').onsubmit = async (e) => {
+  e.preventDefault(); $('err').textContent = '';
+  try {
+    const u = await api('/api/auth/signup', { method: 'POST', quiet: true, body: { name: $('name').value, email: $('email').value, password: $('password').value } });
+    location.href = u.has_access ? '/' : '/account.html?subscribe=1';
+  } catch (err) { $('err').textContent = err.message; }
+};
+</script></body></html>

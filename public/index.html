@@ -1,0 +1,84 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IronScout</title><link rel="stylesheet" href="/app.css">
+<style>
+  .hero { max-width:760px; margin:40px auto 10px; padding:0 20px; text-align:center; }
+  .hero h2 { font-size:28px; margin:0 0 6px; } .hero p { color:var(--muted); margin:0 0 22px; font-size:16px; }
+  .big { display:flex; gap:10px; }
+  .big input { flex:1; font-size:20px; padding:16px 18px; border-radius:12px; min-width:0; }
+  .big button { font-size:18px; padding:16px 26px; border-radius:12px; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:14px; }
+  .chips button { font-size:14px; padding:7px 12px; border-radius:999px; background:#1c2029; }
+  .market { max-width:900px; margin:26px auto 0; padding:0 20px; display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .stat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .stat .v { font-size:22px; font-weight:700; } .stat .l { color:var(--muted); font-size:13px; }
+  .heading { max-width:900px; margin:26px auto 0; padding:0 20px; display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  .heading h3 { margin:0; font-size:18px; } .heading .small a { color:var(--muted); }
+  main { max-width:1200px; margin:0 auto; }
+</style></head><body>
+<header id="hdr"></header>
+<div class="hero">
+  <h2>What are you looking for?</h2>
+  <p>Type a machine. We'll show you what it's selling for and which listings are priced under market.</p>
+  <form class="big" id="f"><input id="q" placeholder="wheel loader, winch truck, excavator…" list="products" autofocus autocomplete="off"><datalist id="products"></datalist><button class="primary" type="submit">Look it up</button></form>
+  <div class="chips" id="chips"></div>
+</div>
+<div id="result"></div>
+<main><div id="list" class="grid"></div></main>
+<script src="/app.js"></script>
+<script>
+let user, savedIds = new Set(), current = null, showAll = false;
+const qs = new URLSearchParams(location.search);
+
+async function init() {
+  user = await requireUser();
+  if (!user.has_access) { location.href = '/account.html?subscribe=1'; return; }
+  $('hdr').innerHTML = renderHeader(user, '/'); wireLogout();
+  const [prods, wl] = await Promise.all([api('/api/products'), api('/api/watchlists')]);
+  $('products').innerHTML = prods.products.map(p => `<option value="${esc(p.name)}">`).join('');
+  // Quick chips: the user's own machines first, then the most-listed tracked ones
+  const mine = wl.watchlists.map(w => w.product);
+  const popular = prods.products.filter(p => !mine.includes(p.name)).slice(0, 8 - Math.min(mine.length, 8)).map(p => p.name);
+  $('chips').innerHTML = [...mine.map(m => `<button onclick="go('${esc(m)}')" title="On your watchlist">★ ${esc(m)}</button>`), ...popular.map(m => `<button onclick="go('${esc(m)}')">${esc(m)}</button>`)].join('')
+    + (mine.length ? `<button onclick="location.href='/mine.html'" style="border-color:var(--accent);color:var(--accent)">All my machines' deals →</button>` : '');
+  if (qs.get('q')) go(qs.get('q'));
+}
+
+async function go(q) {
+  $('q').value = q; current = q;
+  history.replaceState(null, '', '/?q=' + encodeURIComponent(q));
+  $('result').innerHTML = ''; $('list').innerHTML = '<div class="empty">Looking…</div>';
+  const r = await api('/api/lookup?q=' + encodeURIComponent(q) + (showAll ? '&all=1' : ''));
+  if (!r.tracked) {
+    $('list').innerHTML = `<div class="empty">${esc(r.message)}<br><br><button class="primary" onclick="requestIt('${esc(q)}')">Request "${esc(q)}"</button><div class="small muted" style="margin-top:18px">Machines we track now: ${r.tracked_machines.map(esc).join(' · ') || 'none yet'}</div></div>`;
+    return;
+  }
+  const m = r.market;
+  const states = m.by_state.slice(0, 6).map(s => `${esc(s.region)} ${money(s.median_price)} <span class="muted">(${s.sample_size})</span>`).join(' &nbsp;·&nbsp; ');
+  $('result').innerHTML = `
+    <div class="market">
+      <div class="stat"><div class="v">${m.us_median ? money(m.us_median) : '—'}</div><div class="l">US median price</div></div>
+      <div class="stat"><div class="v">${m.us_p25 && m.us_p75 ? money(m.us_p25) + '–' + money(m.us_p75) : '—'}</div><div class="l">Typical range (25th–75th)</div></div>
+      <div class="stat"><div class="v">${r.active_listings}</div><div class="l">Active listings tracked</div></div>
+      <div class="stat"><div class="v">${r.all_deals}</div><div class="l">Priced under market</div></div>
+    </div>
+    ${states ? `<div class="heading"><div class="small muted">By state: ${states}</div></div>` : ''}
+    <div class="heading">
+      <h3>${esc(r.product.name)} — ${r.count} deal${r.count === 1 ? '' : 's'} ${r.filters_applied ? 'matching your settings' : '(all deals, settings ignored)'}</h3>
+      <div class="small">
+        ${r.filters_applied ? `<a href="#" onclick="showAll=true;go(current);return false">Show all ${r.all_deals} deals</a>` : `<a href="#" onclick="showAll=false;go(current);return false">Apply my settings</a>`}
+        &nbsp;·&nbsp; <a href="/account.html">Change settings</a>
+        &nbsp;·&nbsp; ${r.watched ? `<span class="muted">★ On your watchlist</span>` : `<a href="#" onclick="watch(${r.product.id});return false">★ Watch this machine</a>`}
+        ${r.last_updated ? `&nbsp;·&nbsp; <span class="muted">updated ${new Date(r.last_updated).toLocaleString()}</span>` : ''}
+      </div>
+    </div>`;
+  savedIds = new Set(r.deals.filter(d => d.saved).map(d => d.id));
+  $('list').innerHTML = r.deals.length ? r.deals.map(d => dealCard(d, { saved: d.saved })).join('')
+    : `<div class="empty">Nothing under market right now${r.filters_applied ? ' that clears your settings' : ''}.<br>${r.watched ? 'You\'ll be alerted when one shows up.' : `<button class="primary" style="margin-top:12px" onclick="watch(${r.product.id})">★ Watch this machine and alert me</button>`}</div>`;
+}
+async function watch(id) { await api('/api/watchlists', { method: 'POST', body: { product_id: id } }); go(current); }
+async function requestIt(term) { const r = await api('/api/watchlists/request', { method: 'POST', body: { term } }); $('list').innerHTML = `<div class="empty ok">${esc(r.message)}</div>`; }
+async function saveDeal(id) { await api('/api/watchlists/saved/' + id, { method: 'POST' }); go(current); }
+async function unsaveDeal(id) { await api('/api/watchlists/saved/' + id, { method: 'DELETE' }); go(current); }
+$('f').onsubmit = (e) => { e.preventDefault(); if ($('q').value.trim()) go($('q').value.trim()); };
+init().catch(e => { if (!['login', 'subscribe'].includes(e.message)) console.error(e); });
+</script></body></html>

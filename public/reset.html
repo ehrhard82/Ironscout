@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reset password · IronScout</title><link rel="stylesheet" href="/app.css"></head><body>
+<header><h1><a href="/">Iron<span>Scout</span></a></h1></header>
+<div class="auth" id="ask">
+  <h2>Forgot your password?</h2><p class="sub">We'll email you a link to set a new one.</p>
+  <form id="f1"><input id="email" type="email" placeholder="Email" required><div class="err" id="e1"></div><button class="primary" type="submit">Send reset link</button></form>
+  <div class="foot"><a href="/login.html">Back to log in</a></div>
+</div>
+<div class="auth" id="set" style="display:none">
+  <h2>Choose a new password</h2>
+  <form id="f2"><input id="pw" type="password" placeholder="New password (8+ characters)" minlength="8" required><div class="err" id="e2"></div><button class="primary" type="submit">Set password</button></form>
+</div>
+<script src="/app.js"></script>
+<script>
+const token = new URLSearchParams(location.search).get('token');
+if (token) { $('ask').style.display = 'none'; $('set').style.display = ''; }
+$('f1').onsubmit = async (e) => { e.preventDefault();
+  try { const r = await api('/api/auth/forgot', { method: 'POST', quiet: true, body: { email: $('email').value } }); $('e1').className = 'ok'; $('e1').textContent = r.message; }
+  catch (err) { $('e1').textContent = err.message; } };
+$('f2').onsubmit = async (e) => { e.preventDefault();
+  try { await api('/api/auth/reset', { method: 'POST', quiet: true, body: { token, password: $('pw').value } }); location.href = '/login.html'; }
+  catch (err) { $('e2').textContent = err.message; } };
+</script></body></html>
