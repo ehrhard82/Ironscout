@@ -32,7 +32,16 @@ app.get('/health', async (req, res) => {
   try {
     const r = await pool.query('SELECT COUNT(*)::int AS listings FROM listings WHERE is_active');
     res.json({ status: 'ok', active_listings: r.rows[0].listings });
-  } catch (e) { res.status(500).json({ status: 'db error', error: e.message }); }
+  } catch (e) {
+    const hasUrl = Boolean((process.env.DATABASE_URL || '').trim());
+    res.status(500).json({
+      status: 'db error',
+      error: e.message || e.code || String(e),
+      database_url_set: hasUrl,
+      hint: hasUrl ? 'DATABASE_URL is set but the connection failed - check it was pasted completely (starts with postgresql:// and ends with ?sslmode=require).'
+                   : 'DATABASE_URL is NOT set on this service. In Render -> this service -> Environment, add DATABASE_URL with your Neon connection string.',
+    });
+  }
 });
 
 // Public
