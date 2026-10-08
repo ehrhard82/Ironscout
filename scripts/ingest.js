@@ -17,16 +17,21 @@ async function ingestProduct(term) {
 
   for (const src of sources) {
     const run = await pool.query(
-      'INSERT INTO ingest_runs (product_id, source) VALUES ($1,$2) RETURNING id', [productId, src.name]);
+      'INSERT INTO ingest_runs (product_id, source, note) VALUES ($1,$2,$3) RETURNING id', [productId, src.name, 'starting…']);
+    const runId = run.rows[0].id;
+    const progress = (text) => pool.query('UPDATE ingest_runs SET note=$1 WHERE id=$2', [text, runId]).catch(() => {});
     const counts = { fetched: 0, inserted: 0, updated: 0 };
     let error = null, note = null;
     try {
-      const rows = await src.fetch(term);
+      const rows = await src.fetch(term, progress);
       counts.fetched = rows.length;
-      note = rows.note || null;
+      note = rows.note || `source returned ${rows.length} rows`;
+      await progress(`${note}; saving…`);
       for (const r of rows) {
-        const result = await upsertListing(productId, r);
-        if (result in counts) counts[result]++;
+        try {
+          const result = await upsertListing(productId, r);
+          if (result in counts) counts[result]++;
+        } catch (e) { note += `; save error: ${e.message.slice(0, 120)}`; }
       }
       console.log(`  [${src.name}] fetched ${counts.fetched}, new ${counts.inserted}, refreshed ${counts.updated}`);
     } catch (e) {
@@ -35,7 +40,7 @@ async function ingestProduct(term) {
     }
     await pool.query(
       `UPDATE ingest_runs SET fetched=$1, inserted=$2, updated=$3, error=$4, note=$5, finished_at=NOW() WHERE id=$6`,
-      [counts.fetched, counts.inserted, counts.updated, error, note, run.rows[0].id]);
+      [counts.fetched, counts.inserted, counts.updated, error, note, runId]).catch(e => console.error('could not record run:', e.message));
   }
 
   const r = await recalculateProduct(productId);

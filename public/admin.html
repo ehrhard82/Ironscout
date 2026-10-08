@@ -18,7 +18,11 @@
     <table id="users"><thead><tr><th>Email</th><th>Role</th><th>Subscription</th><th>Machines</th><th>Last login</th><th></th></tr></thead><tbody></tbody></table>
   </div></div>
 
-  <div class="section"><h2>Recent ingest runs</h2><div class="card"><div class="muted small" style="margin-bottom:8px">Active sources: <b id="sources">…</b></div><table id="runs"><thead><tr><th>When</th><th>Machine</th><th>Source</th><th>Fetched</th><th>New</th><th>Note / error</th></tr></thead><tbody></tbody></table></div></div>
+  <div class="section"><h2>Recent ingest runs</h2><div class="card">
+    <div class="muted small" style="margin-bottom:8px">This server: <b id="host"></b> · Active sources: <b id="sources">…</b> <span id="busy"></span></div>
+    <div class="row" style="margin-bottom:10px"><button id="test-btn">Test sources now</button><button id="refresh-btn">Refresh</button><span class="muted small">The test takes 1–2 minutes and fetches 5 items per source.</span></div>
+    <div id="test-out" class="small" style="margin-bottom:10px"></div>
+    <div id="runs"></div></div></div>
 </main>
 <script src="/app.js"></script>
 <script>
@@ -35,12 +39,28 @@ async function load() {
     <td>${esc(u.subscription_status)}${u.subscription_ends_at ? `<br><span class="muted small">until ${new Date(u.subscription_ends_at).toLocaleDateString()}</span>` : ''}</td>
     <td>${u.watchlists}</td><td class="muted small">${u.last_login ? new Date(u.last_login).toLocaleString() : '—'}</td>
     <td>${u.role === 'subscriber' && !['active','trialing'].includes(u.subscription_status) ? `<button onclick="patchUser(${u.id},{subscription_status:'active',subscription_ends_at:'${new Date(Date.now()+365*86400000).toISOString()}'})" title="Give free access for a year">Comp 1 yr</button>` : ''}</td></tr>`).join('');
+  $('host').textContent = location.host;
   $('sources').textContent = (runs.sources || []).join(', ');
-  $('runs').querySelector('tbody').innerHTML = runs.runs.map(r => `<tr><td class="small">${new Date(r.started_at).toLocaleString()}</td><td>${esc(r.product || '')}</td><td>${esc(r.source)}</td><td>${r.fetched}</td><td>${r.inserted}</td><td class="small">${r.error ? `<span style="color:var(--warn)">${esc(r.error)}</span>` : esc(r.note || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No runs yet</td></tr>';
+  $('busy').textContent = runs.busy ? '· a fetch is running right now' : '';
+  $('runs').innerHTML = runs.runs.slice(0, 30).map(r => {
+    const secs = r.finished_at ? Math.round((new Date(r.finished_at) - new Date(r.started_at)) / 1000) + 's' : 'running…';
+    const status = r.error ? `<span style="color:var(--warn)">${esc(r.error)}</span>` : esc(r.note || '');
+    return `<div style="padding:8px 0;border-bottom:1px solid var(--line,#ddd)"><b>${esc(r.source)}</b> · ${esc(r.product || '')} · <span class="muted small">${new Date(r.started_at).toLocaleString()} · ${secs}</span><br>
+      <span class="small">fetched <b>${r.fetched}</b>, new <b>${r.inserted}</b></span><br><span class="small">${status}</span></div>`;
+  }).join('') || '<div class="muted">No runs yet</div>';
 }
 async function act(path, body) { try { await api(path, { method: 'POST', body }); load(); } catch (e) { alert(e.message); } }
 async function patchUser(id, body) { try { await api('/api/admin/users/' + id, { method: 'PATCH', body }); load(); } catch (e) { alert(e.message); } }
 $('ingest-btn').onclick = async () => { const t = $('ingest-term').value.trim(); if (!t) return; try { await api('/api/admin/ingest', { method: 'POST', body: { product: t } }); $('ingest-msg').textContent = `Fetching "${t}"… check runs in a minute.`; } catch (e) { alert(e.message); } };
+$('refresh-btn').onclick = () => load();
+$('test-btn').onclick = async () => {
+  $('test-out').textContent = 'Testing… this takes a minute or two, leave the page open.';
+  try {
+    const r = await api('/api/admin/debug/sources?q=' + encodeURIComponent($('ingest-term').value.trim() || 'wheel loader'));
+    $('test-out').innerHTML = `<div class="muted">token ${r.token_present ? 'present' : 'MISSING'} · APIFY_SOURCES=${esc(r.apify_sources_env)}</div>` +
+      (r.results.map(x => `<div>${x.ok ? '✅' : '❌'} <b>${esc(x.source)}</b> — ${x.ok ? `${x.items} items in ${x.seconds}s: ${esc(x.first || '')}` : `<span style="color:var(--warn)">${esc(x.error || `0 items (${x.run_status || 'no run'}) in ${x.seconds}s`)}</span>`}</div>`).join('') || '<div>No Apify sources enabled.</div>');
+  } catch (e) { $('test-out').textContent = 'Test failed: ' + e.message; }
+};
 $('recalc-btn').onclick = async () => { const r = await api('/api/admin/recalculate', { method: 'POST' }); $('ingest-msg').textContent = r.results.map(x => `${x.product}: ${x.deals} deals`).join(' · '); };
 $('alerts-btn').onclick = async () => { const r = await api('/api/admin/alerts/run', { method: 'POST' }); $('ingest-msg').textContent = `${r.sent} sent, ${r.skipped_not_due} not due yet`; };
 $('nu-btn').onclick = async () => { $('nu-msg').textContent = ''; try { await api('/api/admin/users', { method: 'POST', body: { email: $('nu-email').value, password: $('nu-pw').value, name: $('nu-name').value, role: $('nu-role').value } }); $('nu-email').value = $('nu-pw').value = $('nu-name').value = ''; load(); } catch (e) { $('nu-msg').textContent = e.message; } };

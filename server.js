@@ -80,6 +80,12 @@ async function ensureSchema() {
   const sql = fs.readFileSync(path.join(__dirname, 'database', 'schema.sql'), 'utf8');
   await pool.query(sql);
   console.log('Database schema verified');
+  // Any run left open belonged to a previous process that was restarted (a redeploy, a
+  // free-tier spin-down) before it finished. Say so instead of leaving a silent 0.
+  const r = await pool.query(
+    `UPDATE ingest_runs SET error = 'interrupted: server restarted before this fetch finished (redeploy or spin-down)', finished_at = NOW()
+     WHERE finished_at IS NULL AND started_at < NOW() - INTERVAL '2 minutes'`);
+  if (r.rowCount) console.log(`Marked ${r.rowCount} interrupted ingest run(s)`);
 }
 
 const PORT = Number(process.env.PORT || 3000);
