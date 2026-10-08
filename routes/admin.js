@@ -109,6 +109,7 @@ router.post('/requests/:id/reject', async (req, res, next) => {
 router.get('/debug/source', async (req, res, next) => {
   try {
     const { rawSample } = require('../lib/sources/apify');
+    if (!(process.env.APIFY_TOKEN || '').trim()) return res.status(400).json({ error: 'APIFY_TOKEN is not set on this server. In Render -> Environment, add a row with key APIFY_TOKEN and your apify_api_... token as the value.' });
     res.json(await rawSample(String(req.query.name || 'govdeals'), String(req.query.q || 'wheel loader')));
   } catch (e) {
     res.status(500).json({ error: e.message, response: e.response?.data });
