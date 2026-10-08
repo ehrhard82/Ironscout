@@ -110,10 +110,12 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
   inserted      INTEGER DEFAULT 0,
   updated       INTEGER DEFAULT 0,
   error         TEXT,
+  note          TEXT,                         -- e.g. 'actor returned 120 items, 0 usable; keys: ...'
   started_at    TIMESTAMP DEFAULT NOW(),
   finished_at   TIMESTAMP
 );
 
+ALTER TABLE ingest_runs ADD COLUMN IF NOT EXISTS note TEXT;
 CREATE INDEX IF NOT EXISTS idx_listings_product   ON listings(product_id);
 CREATE INDEX IF NOT EXISTS idx_listings_state     ON listings(state);
 CREATE INDEX IF NOT EXISTS idx_listings_price     ON listings(price);

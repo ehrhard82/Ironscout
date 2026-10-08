@@ -18,7 +18,7 @@
     <table id="users"><thead><tr><th>Email</th><th>Role</th><th>Subscription</th><th>Machines</th><th>Last login</th><th></th></tr></thead><tbody></tbody></table>
   </div></div>
 
-  <div class="section"><h2>Recent ingest runs</h2><div class="card"><table id="runs"><thead><tr><th>When</th><th>Machine</th><th>Source</th><th>Fetched</th><th>New</th><th>Error</th></tr></thead><tbody></tbody></table></div></div>
+  <div class="section"><h2>Recent ingest runs</h2><div class="card"><table id="runs"><thead><tr><th>When</th><th>Machine</th><th>Source</th><th>Fetched</th><th>New</th><th>Note / error</th></tr></thead><tbody></tbody></table></div></div>
 </main>
 <script src="/app.js"></script>
 <script>
@@ -35,7 +35,7 @@ async function load() {
     <td>${esc(u.subscription_status)}${u.subscription_ends_at ? `<br><span class="muted small">until ${new Date(u.subscription_ends_at).toLocaleDateString()}</span>` : ''}</td>
     <td>${u.watchlists}</td><td class="muted small">${u.last_login ? new Date(u.last_login).toLocaleString() : '—'}</td>
     <td>${u.role === 'subscriber' && !['active','trialing'].includes(u.subscription_status) ? `<button onclick="patchUser(${u.id},{subscription_status:'active',subscription_ends_at:'${new Date(Date.now()+365*86400000).toISOString()}'})" title="Give free access for a year">Comp 1 yr</button>` : ''}</td></tr>`).join('');
-  $('runs').querySelector('tbody').innerHTML = runs.runs.map(r => `<tr><td class="small">${new Date(r.started_at).toLocaleString()}</td><td>${esc(r.product || '')}</td><td>${esc(r.source)}</td><td>${r.fetched}</td><td>${r.inserted}</td><td class="small" style="color:var(--warn)">${esc(r.error || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No runs yet</td></tr>';
+  $('runs').querySelector('tbody').innerHTML = runs.runs.map(r => `<tr><td class="small">${new Date(r.started_at).toLocaleString()}</td><td>${esc(r.product || '')}</td><td>${esc(r.source)}</td><td>${r.fetched}</td><td>${r.inserted}</td><td class="small">${r.error ? `<span style="color:var(--warn)">${esc(r.error)}</span>` : esc(r.note || '')}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">No runs yet</td></tr>';
 }
 async function act(path, body) { try { await api(path, { method: 'POST', body }); load(); } catch (e) { alert(e.message); } }
 async function patchUser(id, body) { try { await api('/api/admin/users/' + id, { method: 'PATCH', body }); load(); } catch (e) { alert(e.message); } }

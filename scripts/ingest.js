@@ -19,10 +19,11 @@ async function ingestProduct(term) {
     const run = await pool.query(
       'INSERT INTO ingest_runs (product_id, source) VALUES ($1,$2) RETURNING id', [productId, src.name]);
     const counts = { fetched: 0, inserted: 0, updated: 0 };
-    let error = null;
+    let error = null, note = null;
     try {
       const rows = await src.fetch(term);
       counts.fetched = rows.length;
+      note = rows.note || null;
       for (const r of rows) {
         const result = await upsertListing(productId, r);
         if (result in counts) counts[result]++;
@@ -33,8 +34,8 @@ async function ingestProduct(term) {
       console.log(`  [${src.name}] ERROR: ${error}`);
     }
     await pool.query(
-      `UPDATE ingest_runs SET fetched=$1, inserted=$2, updated=$3, error=$4, finished_at=NOW() WHERE id=$5`,
-      [counts.fetched, counts.inserted, counts.updated, error, run.rows[0].id]);
+      `UPDATE ingest_runs SET fetched=$1, inserted=$2, updated=$3, error=$4, note=$5, finished_at=NOW() WHERE id=$6`,
+      [counts.fetched, counts.inserted, counts.updated, error, note, run.rows[0].id]);
   }
 
   const r = await recalculateProduct(productId);

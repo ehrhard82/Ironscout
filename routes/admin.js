@@ -29,7 +29,7 @@ router.post('/recalculate', async (req, res, next) => {
 router.get('/runs', async (req, res, next) => {
   try {
     const r = await pool.query(`
-      SELECT ir.id, p.name AS product, ir.source, ir.fetched, ir.inserted, ir.updated, ir.error, ir.started_at, ir.finished_at
+      SELECT ir.id, p.name AS product, ir.source, ir.fetched, ir.inserted, ir.updated, ir.error, ir.note, ir.started_at, ir.finished_at
       FROM ingest_runs ir LEFT JOIN products p ON p.id = ir.product_id
       ORDER BY ir.started_at DESC LIMIT 50`);
     res.json({ busy, runs: r.rows });
@@ -103,6 +103,17 @@ router.post('/requests/:id/reject', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+
+// GET /api/admin/debug/source?name=govdeals&q=wheel loader
+// Calls the Apify actor directly and shows the raw items + how they map. Open in a browser.
+router.get('/debug/source', async (req, res, next) => {
+  try {
+    const { rawSample } = require('../lib/sources/apify');
+    res.json(await rawSample(String(req.query.name || 'govdeals'), String(req.query.q || 'wheel loader')));
+  } catch (e) {
+    res.status(500).json({ error: e.message, response: e.response?.data });
+  }
+});
 
 // POST /api/admin/alerts/run   send any due digests now (what the scheduler does every 15 min)
 router.post('/alerts/run', async (req, res, next) => {
