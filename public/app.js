@@ -55,7 +55,7 @@ function dealCard(d, { broker = false, saved = null } = {}) {
   }
   return `<div class="card status-${d.commission_status || 'open'}" id="deal-${d.id}">
     <div class="top">
-      <div class="title"><a href="${esc(d.url || '#')}" target="_blank" rel="noopener">${esc(d.title)}</a></div>
+      <div class="title">${d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.title)}</a>` : esc(d.title)}</div>
       <div class="score">${d.deal_score}<small>score</small></div>
     </div>
     <div class="price">${money(d.price)}<span class="mkt">${money(d.market_price)}</span></div>
