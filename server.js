@@ -31,15 +31,18 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/health', async (req, res) => {
   try {
     const r = await pool.query('SELECT COUNT(*)::int AS listings FROM listings WHERE is_active');
-    res.json({ status: 'ok', active_listings: r.rows[0].listings });
+    const found = require('./lib/db').findDatabaseUrl();
+    res.json({ status: 'ok', active_listings: r.rows[0].listings, database_from: found ? found.from : 'local settings' });
   } catch (e) {
-    const hasUrl = Boolean((process.env.DATABASE_URL || '').trim());
+    const found = require('./lib/db').findDatabaseUrl();
     res.status(500).json({
       status: 'db error',
       error: e.message || e.code || String(e),
-      database_url_set: hasUrl,
-      hint: hasUrl ? 'DATABASE_URL is set but the connection failed - check it was pasted completely (starts with postgresql:// and ends with ?sslmode=require).'
-                   : 'DATABASE_URL is NOT set on this service. In Render -> this service -> Environment, add DATABASE_URL with your Neon connection string.',
+      database_url_set: Boolean(found),
+      found_under: found ? found.from : null,
+      host: found ? (found.url.match(/@([^/]+)/) || [])[1] : null,
+      hint: found ? 'A database address was found but the connection failed - check the host above looks like your Neon endpoint and the password part is complete.'
+                  : 'No Postgres connection string found in any setting. In Render -> this service -> Environment, add DATABASE_URL with your Neon connection string (starts with postgresql://).',
     });
   }
 });
