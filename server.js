@@ -61,7 +61,17 @@ app.use((err, req, res, next) => {
 // Clean out expired sessions once a day
 setInterval(() => auth.purgeExpiredSessions().catch(() => {}), 24 * 3600 * 1000).unref();
 
+// Apply the schema on startup (safe to rerun: everything is IF NOT EXISTS). This
+// means free-tier hosts with no shell still get their tables created.
+async function ensureSchema() {
+  const fs = require('fs');
+  const sql = fs.readFileSync(path.join(__dirname, 'database', 'schema.sql'), 'utf8');
+  await pool.query(sql);
+  console.log('Database schema verified');
+}
+
 const PORT = Number(process.env.PORT || 3000);
+ensureSchema().catch(e => console.error('Schema setup failed (will keep serving; check DATABASE_URL):', e.message));
 app.listen(PORT, () => {
   console.log(`IronScout running at ${process.env.APP_URL || 'http://localhost:' + PORT}`);
   if (!process.env.STRIPE_SECRET_KEY) console.log('  (billing disabled: STRIPE_SECRET_KEY not set — admin/broker accounts still work)');
