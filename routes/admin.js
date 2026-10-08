@@ -32,7 +32,7 @@ router.get('/runs', async (req, res, next) => {
       SELECT ir.id, p.name AS product, ir.source, ir.fetched, ir.inserted, ir.updated, ir.error, ir.note, ir.started_at, ir.finished_at
       FROM ingest_runs ir LEFT JOIN products p ON p.id = ir.product_id
       ORDER BY ir.started_at DESC LIMIT 50`);
-    res.json({ busy, runs: r.rows });
+    res.json({ busy, sources: require('../lib/sources').map(s => s.name), runs: r.rows });
   } catch (e) { next(e); }
 });
 
