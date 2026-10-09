@@ -27,7 +27,7 @@ async function requireUser() {
 function renderHeader(user, active) {
   const nav = [
     ['/', 'Deals'],
-    ['/account.html', 'Watchlists & account'],
+    ['/account.html', 'Settings'],
   ];
   if (user && (user.role === 'admin' || user.role === 'broker')) nav.splice(1, 0, ['/?view=broker', 'Broker board']);
   if (user && user.role === 'admin') nav.push(['/admin.html', 'Admin']);
