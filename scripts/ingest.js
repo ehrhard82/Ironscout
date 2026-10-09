@@ -11,6 +11,13 @@ const { getOrCreateProduct, upsertListing, upsertSale, deactivateStale } = requi
 const { recalculateProduct } = require('../lib/pricing');
 const { sendDigests } = require('../lib/alerts');
 
+function friendlyError(e) {
+  const type = e.response?.data?.error?.type;
+  if (type === 'insufficient-permissions' || type === 'record-not-found') return `this scraper is no longer available on Apify (${type}) - it needs replacing in lib/sources/apify.js`;
+  if (type === 'platform-usage-limit-exceeded' || type === 'platform-feature-disabled') return 'Apify monthly usage limit reached - upgrade the Apify plan or wait for the next billing period';
+  return e.response ? `${e.response.status} ${JSON.stringify(e.response.data).slice(0, 300)}` : e.message;
+}
+
 const SOLD_EVERY_DAYS = Number(process.env.SOLD_REFRESH_DAYS || 30);
 
 /** Pull completed sales (hammer prices) for a product from every source that has them. */
@@ -37,7 +44,7 @@ async function ingestSold(productId, term, { force = false } = {}) {
         catch (e) { note += `; save error: ${e.message.slice(0, 120)}`; }
       }
     } catch (e) {
-      error = e.response ? `${e.response.status} ${JSON.stringify(e.response.data).slice(0, 300)}` : e.message;
+      error = friendlyError(e);
     }
     await pool.query(`UPDATE ingest_runs SET fetched=$1, inserted=$2, updated=$3, error=$4, note=$5, finished_at=NOW() WHERE id=$6`,
       [counts.fetched, counts.inserted, counts.updated, error, note, runId]).catch(() => {});
@@ -70,7 +77,7 @@ async function ingestProduct(term, { sold = true } = {}) {
       }
       console.log(`  [${src.name}] fetched ${counts.fetched}, new ${counts.inserted}, refreshed ${counts.updated}`);
     } catch (e) {
-      error = e.response ? `${e.response.status} ${JSON.stringify(e.response.data).slice(0, 300)}` : e.message;
+      error = friendlyError(e);
       console.log(`  [${src.name}] ERROR: ${error}`);
     }
     await pool.query(
