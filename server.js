@@ -28,6 +28,9 @@ app.use((req, res, next) => {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+let BUILD = process.env.RENDER_GIT_COMMIT ? process.env.RENDER_GIT_COMMIT.slice(0, 7) : 'unknown';
+try { BUILD = require('child_process').execSync('git log -1 --format=%cd~%s --date=format:%Y-%m-%d\\ %H:%M', { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch {}
+app.get('/version', (req, res) => res.json({ build: BUILD }));
 app.get('/health', async (req, res) => {
   try {
     const r = await pool.query('SELECT COUNT(*)::int AS listings FROM listings WHERE is_active');
