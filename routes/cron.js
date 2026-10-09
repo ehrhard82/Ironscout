@@ -23,8 +23,17 @@ router.use((req, res, next) => {
   next();
 });
 
+// A full refresh costs real money (Apify), so even if a scheduler calls this every few
+// minutes by mistake it only runs once per INGEST_MIN_HOURS. Add &force=1 to override.
+let lastIngestAt = 0;
 router.get('/ingest', async (req, res) => {
   try {
+    const minHours = Number(process.env.INGEST_MIN_HOURS || 20);
+    const since = (Date.now() - lastIngestAt) / 3600000;
+    if (lastIngestAt && since < minHours && req.query.force !== '1') {
+      return res.json({ started: false, reason: `already refreshed ${since.toFixed(1)}h ago; runs at most every ${minHours}h (add &force=1 to override)` });
+    }
+    lastIngestAt = Date.now();
     const terms = await scheduledTerms();
     for (const t of terms) ingestQueue.enqueue(t);          // one at a time, after anything already running
     deactivateStale(14).catch(() => {});
