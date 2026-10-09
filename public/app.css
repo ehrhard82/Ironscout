@@ -1,6 +1,7 @@
 :root { --bg:#0f1115; --card:#181b22; --line:#2a2f3a; --text:#e8eaf0; --muted:#8b92a5; --accent:#f5a524; --good:#3ddc84; --warn:#ff6b6b; }
 * { box-sizing:border-box; }
-body { margin:0; font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); }
+html,body { overflow-x:hidden; max-width:100%; }
+body { margin:0; overflow-wrap:anywhere; font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); }
 a { color:var(--accent); }
 header { padding:14px 24px; border-bottom:1px solid var(--line); display:flex; gap:18px; align-items:center; flex-wrap:wrap; }
 header h1 { margin:0; font-size:20px; font-weight:700; letter-spacing:.3px; }
@@ -28,7 +29,7 @@ main { padding:20px 24px; }
 .meta { color:var(--muted); font-size:13px; display:flex; gap:12px; flex-wrap:wrap; }
 .tag { background:#232835; padding:2px 8px; border-radius:999px; font-size:12px; }
 .actions { display:flex; gap:8px; margin-top:auto; padding-top:6px; } .actions button { flex:1; font-size:13px; }
-.empty { grid-column:1/-1; color:var(--muted); text-align:center; padding:60px 0; }
+.empty { grid-column:1/-1; color:var(--muted); text-align:center; padding:50px 20px; max-width:720px; margin:0 auto; font-size:17px; }
 .status-claimed { border-color:var(--accent); } .status-sold { border-color:var(--good); } .status-passed { opacity:.5; }
 .auth { max-width:400px; margin:60px auto; padding:0 20px; }
 .auth h2 { margin:0 0 6px; } .auth p.sub { color:var(--muted); margin:0 0 22px; }
