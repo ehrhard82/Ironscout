@@ -132,18 +132,18 @@ router.get('/debug/source', async (req, res, next) => {
 router.get('/debug/sources', async (req, res) => {
   const { rawSample, enabledSources } = require('../lib/sources/apify');
   const q = String(req.query.q || 'wheel loader');
-  const out = { server: req.get('host'), token_present: Boolean((process.env.APIFY_TOKEN || '').trim()), apify_sources_env: process.env.APIFY_SOURCES || '(blank → default govdeals,ironplanet)', results: [] };
-  for (const s of enabledSources()) {
+  const out = { server: req.get('host'), token_present: Boolean((process.env.APIFY_TOKEN || '').trim()), apify_sources_env: process.env.APIFY_SOURCES || '(blank → default govdeals,ironplanet)' };
+  out.results = await Promise.all(enabledSources().map(async (s) => {       // in parallel so the phone doesn't time out
     const t0 = Date.now();
     try {
       const r = await rawSample(s.name, q, 1);
       const m = r.mapped[0];
-      out.results.push({ source: s.name, ok: r.count > 0, items: r.count, run_status: r.run_status, seconds: Math.round((Date.now() - t0) / 1000),
-        first: m ? `${m.year || ''} ${m.title || ''} — $${m.price || '?'} — ${m.city || ''} ${m.state || ''}`.trim() : null });
+      return { source: s.name, ok: r.count > 0, items: r.count, run_status: r.run_status, seconds: Math.round((Date.now() - t0) / 1000),
+        first: m ? `${m.year || ''} ${m.title || ''} — $${m.price || '?'} — ${m.city || ''} ${m.state || ''}`.trim() : null };
     } catch (e) {
-      out.results.push({ source: s.name, ok: false, seconds: Math.round((Date.now() - t0) / 1000), error: e.response ? `${e.response.status} ${JSON.stringify(e.response.data).slice(0, 300)}` : e.message });
+      return { source: s.name, ok: false, seconds: Math.round((Date.now() - t0) / 1000), error: e.response ? `${e.response.status} ${JSON.stringify(e.response.data).slice(0, 300)}` : e.message };
     }
-  }
+  }));
   res.json(out);
 });
 
