@@ -10,6 +10,8 @@ It is deliberately product-agnostic: "dirt bike" and "used car" go through the
 same pipeline. The dollar-margin floor just means a $300 saving on a bike never
 shows up as a deal, while $20k off a $400k loader does.
 
+> **Not a coder?** Read **[OWNERS_GUIDE.md](OWNERS_GUIDE.md)** — how to run it, what it costs, what to do when something looks wrong.
+
 ## What a user sees
 
 1. **Log in, type a machine** ("wheel loader"). One page shows the US median, the
