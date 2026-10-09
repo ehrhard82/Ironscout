@@ -49,8 +49,10 @@ router.get('/', requireAccess, async (req, res, next) => {
       pool.query('SELECT 1 FROM watchlists WHERE user_id = $1 AND product_id = $2', [req.user.id, product.id]),
     ]);
     const us = market.rows.find(r => r.region_type === 'country');
+    const qs = require('../lib/ingestQueue').status();
     res.json({
       tracked: true, query: q, product, other_matches: p.rows.slice(1),
+      fetching: qs.running === product.name || qs.queued.includes(product.name),
       watched: watched.rows.length > 0,
       market: { us_median: us?.median_price || null, us_p25: us?.p25_price || null, us_p75: us?.p75_price || null, sample_size: us?.sample_size || 0,
                 by_state: market.rows.filter(r => r.region_type === 'state') },

@@ -125,8 +125,13 @@ router.post('/request', async (req, res, next) => {
       await pool.query(`INSERT INTO watchlists (user_id, product_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [req.user.id, existing.rows[0].id]);
       return res.json({ ok: true, tracked: true, message: `"${term}" is already tracked — added to your machines.` });
     }
-    await pool.query('INSERT INTO product_requests (user_id, term) VALUES ($1,$2)', [req.user.id, term]);
-    res.status(201).json({ ok: true, tracked: false, message: `Got it — we'll start tracking "${term}" if we can source it, and add it to your machines.` });
+    // New machine: start tracking it right now. The request row stays as a record for the admin page.
+    await pool.query(`INSERT INTO product_requests (user_id, term, status) VALUES ($1,$2,'approved')`, [req.user.id, term]);
+    const p = await pool.query(`INSERT INTO products (name) VALUES ($1) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id`, [term]);
+    await pool.query(`INSERT INTO watchlists (user_id, product_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [req.user.id, p.rows[0].id]);
+    const q = require('../lib/ingestQueue').enqueue(term);
+    res.status(201).json({ ok: true, tracked: true, fetching: true, position: q.position,
+      message: `Searching the auction sites for "${term}" now. This usually takes 2–5 minutes.` });
   } catch (e) { next(e); }
 });
 

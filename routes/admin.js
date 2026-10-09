@@ -4,22 +4,18 @@
 // GET  /api/admin/runs                  last 50 ingest runs (spot a dead source)
 const router = require('express').Router();
 const pool = require('../lib/db');
-const { ingestProduct } = require('../scripts/ingest');
+const ingestQueue = require('../lib/ingestQueue');
 const { recalculateAll } = require('../lib/pricing');
 const { sendDigests } = require('../lib/alerts');
 const { hashPassword, validEmail, validPassword } = require('../lib/auth');
-
-let busy = false;
 
 router.post('/ingest', async (req, res, next) => {
   try {
     const product = (req.body?.product || '').trim();
     if (!product) return res.status(400).json({ error: 'product is required' });
-    if (busy) return res.status(409).json({ error: 'An ingest is already running' });
-    busy = true;
-    res.json({ started: product });                 // respond immediately; work continues
-    ingestProduct(product).then(() => sendDigests({ realtimeOnly: true })).catch(e => console.error(e)).finally(() => { busy = false; });
-  } catch (e) { busy = false; next(e); }
+    const q = ingestQueue.enqueue(product);       // respond immediately; work continues in the background
+    res.json({ started: product, ...q, ...ingestQueue.status() });
+  } catch (e) { next(e); }
 });
 
 router.post('/recalculate', async (req, res, next) => {
@@ -32,7 +28,7 @@ router.get('/runs', async (req, res, next) => {
       SELECT ir.id, p.name AS product, ir.source, ir.fetched, ir.inserted, ir.updated, ir.error, ir.note, ir.started_at, ir.finished_at
       FROM ingest_runs ir LEFT JOIN products p ON p.id = ir.product_id
       ORDER BY ir.started_at DESC LIMIT 50`);
-    res.json({ busy, sources: require('../lib/sources').map(s => s.name), runs: r.rows });
+    res.json({ busy: ingestQueue.isBusy(), ...ingestQueue.status(), sources: require('../lib/sources').map(s => s.name), runs: r.rows });
   } catch (e) { next(e); }
 });
 
@@ -92,8 +88,8 @@ router.post('/requests/:id/approve', async (req, res, next) => {
     const { term, user_id } = r.rows[0];
     const p = await pool.query(`INSERT INTO products (name) VALUES ($1) ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id`, [term]);
     if (user_id) await pool.query(`INSERT INTO watchlists (user_id, product_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [user_id, p.rows[0].id]);
-    if (!busy) { busy = true; ingestProduct(term).then(() => sendDigests({ realtimeOnly: true })).catch(console.error).finally(() => { busy = false; }); }
-    res.json({ ok: true, product: term, ingesting: true, note: 'Add it to TRACKED_PRODUCTS in .env so the scheduler keeps it fresh.' });
+    ingestQueue.enqueue(term);
+    res.json({ ok: true, product: term, ingesting: true });
   } catch (e) { next(e); }
 });
 router.post('/requests/:id/reject', async (req, res, next) => {

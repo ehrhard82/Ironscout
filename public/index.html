@@ -49,8 +49,15 @@ async function go(q) {
   history.replaceState(null, '', '/?q=' + encodeURIComponent(q));
   $('result').innerHTML = ''; $('list').innerHTML = '<div class="empty">Looking…</div>';
   const r = await api('/api/lookup?q=' + encodeURIComponent(q) + (showAll ? '&all=1' : ''));
-  if (!r.tracked) {
-    $('list').innerHTML = `<div class="empty">${esc(r.message)}<br><br><button class="primary" onclick="requestIt('${esc(q)}')">Request "${esc(q)}"</button><div class="small muted" style="margin-top:18px">Machines we track now: ${r.tracked_machines.map(esc).join(' · ') || 'none yet'}</div></div>`;
+  if (!r.tracked) {                       // brand-new machine: start tracking + fetching it right away
+    $('list').innerHTML = `<div class="empty">New machine — starting a search for "${esc(q)}"…</div>`;
+    await requestIt(q);
+    return;
+  }
+  if (r.fetching || (r.active_listings === 0 && !r.last_updated)) {
+    $('result').innerHTML = '';
+    $('list').innerHTML = `<div class="empty"><div class="spin"></div>Searching the auction sites for "${esc(r.product.name)}"… this usually takes 2–5 minutes. You can leave this page open; it refreshes itself.</div>`;
+    clearTimeout(pollTimer); pollTimer = setTimeout(() => go(q), 20000);
     return;
   }
   const m = r.market;
@@ -77,7 +84,12 @@ async function go(q) {
     : `<div class="empty">Nothing under market right now${r.filters_applied ? ' that clears your settings' : ''}.<br>${r.watched ? 'You\'ll be alerted when one shows up.' : `<button class="primary" style="margin-top:12px" onclick="watch(${r.product.id})">★ Watch this machine and alert me</button>`}</div>`;
 }
 async function watch(id) { await api('/api/watchlists', { method: 'POST', body: { product_id: id } }); go(current); }
-async function requestIt(term) { const r = await api('/api/watchlists/request', { method: 'POST', body: { term } }); $('list').innerHTML = `<div class="empty ok">${esc(r.message)}</div>`; }
+let pollTimer = null;
+async function requestIt(term) {
+  const r = await api('/api/watchlists/request', { method: 'POST', body: { term } });
+  $('list').innerHTML = `<div class="empty"><div class="spin"></div>${esc(r.message)}<br><span class="small muted">You can leave this page open; it refreshes itself.</span></div>`;
+  clearTimeout(pollTimer); pollTimer = setTimeout(() => go(term), 20000);
+}
 async function saveDeal(id) { await api('/api/watchlists/saved/' + id, { method: 'POST' }); go(current); }
 async function unsaveDeal(id) { await api('/api/watchlists/saved/' + id, { method: 'DELETE' }); go(current); }
 $('f').onsubmit = (e) => { e.preventDefault(); if ($('q').value.trim()) go($('q').value.trim()); };
