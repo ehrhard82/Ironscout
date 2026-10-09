@@ -41,9 +41,17 @@ function wireLogout() {
   if (b) b.onclick = async (e) => { e.preventDefault(); await api('/api/auth/logout', { method: 'POST', quiet: true }); location.href = '/login.html'; };
 }
 
+function endsIn(when) {
+  const ms = new Date(when) - Date.now();
+  if (ms <= 0) return 'auction ended';
+  const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
+  if (h < 1) return `ends in ${m} min`;
+  if (h < 48) return `ends in ${h}h ${m}m`;
+  return `ends ${new Date(when).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}`;
+}
 function dealCard(d, { broker = false, saved = null } = {}) {
   const where = [d.city, d.state].filter(Boolean).join(', ') || 'location unknown';
-  const auction = d.sale_type === 'auction' && d.auction_ends ? ` · ends ${new Date(d.auction_ends).toLocaleDateString()}` : '';
+  const auction = d.sale_type === 'auction' ? (d.auction_ends ? ` · <b style="color:${(new Date(d.auction_ends) - Date.now()) < 24 * 3600000 ? 'var(--warn)' : 'inherit'}">${endsIn(d.auction_ends)}</b>` : ' · auction') : '';
   let actions = '';
   if (broker) {
     if (d.commission_status === 'open') actions = `<button onclick="brokerAct(${d.id},'claim')">Claim</button><button onclick="brokerAct(${d.id},'pass')">Pass</button>`;
