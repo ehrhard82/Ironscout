@@ -45,6 +45,26 @@ CREATE TABLE IF NOT EXISTS listings (
   UNIQUE (source, source_id)
 );
 
+-- Completed sales (hammer prices). What a machine actually SOLD for is the real market;
+-- asking prices and open bids are only a proxy. Filled by the weekly "sold" fetch.
+CREATE TABLE IF NOT EXISTS sales (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id    INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  source        VARCHAR(50)  NOT NULL,
+  source_id     VARCHAR(255) NOT NULL,
+  title         VARCHAR(500) NOT NULL,
+  price         NUMERIC(12,2) NOT NULL,          -- final / hammer price
+  year          INTEGER,
+  hours         INTEGER,
+  city          VARCHAR(100),
+  state         VARCHAR(50),
+  url           TEXT,
+  sold_at       TIMESTAMP,
+  first_seen    TIMESTAMP DEFAULT NOW(),
+  UNIQUE (source, source_id)
+);
+CREATE INDEX IF NOT EXISTS idx_sales_product ON sales(product_id, sold_at DESC);
+
 -- Price changes over time (a seller dropping price is itself a signal)
 CREATE TABLE IF NOT EXISTS price_history (
   id          SERIAL PRIMARY KEY,
@@ -116,6 +136,7 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
 );
 
 ALTER TABLE ingest_runs ADD COLUMN IF NOT EXISTS note TEXT;
+ALTER TABLE market_stats ADD COLUMN IF NOT EXISTS basis VARCHAR(10) DEFAULT 'asking';   -- 'sold' when built from completed sales
 CREATE INDEX IF NOT EXISTS idx_listings_product   ON listings(product_id);
 CREATE INDEX IF NOT EXISTS idx_listings_state     ON listings(state);
 CREATE INDEX IF NOT EXISTS idx_listings_price     ON listings(price);

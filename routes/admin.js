@@ -18,6 +18,19 @@ router.post('/ingest', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// POST /api/admin/ingest-sold { product }   pull completed sales now (normally done weekly by the ingest)
+router.post('/ingest-sold', async (req, res, next) => {
+  try {
+    const product = (req.body?.product || '').trim();
+    if (!product) return res.status(400).json({ error: 'product is required' });
+    const { ingestSold } = require('../scripts/ingest');
+    const { getOrCreateProduct } = require('../lib/listings');
+    const { recalculateProduct } = require('../lib/pricing');
+    res.json({ started: product });
+    getOrCreateProduct(product).then(id => ingestSold(id, product, { force: true }).then(() => recalculateProduct(id))).catch(e => console.error(e));
+  } catch (e) { next(e); }
+});
+
 router.post('/recalculate', async (req, res, next) => {
   try { res.json({ results: await recalculateAll() }); } catch (e) { next(e); }
 });
@@ -100,13 +113,13 @@ router.post('/requests/:id/reject', async (req, res, next) => {
 });
 
 
-// GET /api/admin/debug/source?name=govdeals&q=wheel loader
+// GET /api/admin/debug/source?name=govdeals&q=wheel loader[&mode=sold]
 // Calls the Apify actor directly and shows the raw items + how they map. Open in a browser.
 router.get('/debug/source', async (req, res, next) => {
   try {
     const { rawSample } = require('../lib/sources/apify');
     if (!(process.env.APIFY_TOKEN || '').trim()) return res.status(400).json({ error: 'APIFY_TOKEN is not set on this server. In Render -> Environment, add a row with key APIFY_TOKEN and your apify_api_... token as the value.' });
-    res.json(await rawSample(String(req.query.name || 'govdeals'), String(req.query.q || 'wheel loader')));
+    res.json(await rawSample(String(req.query.name || 'govdeals'), String(req.query.q || 'wheel loader'), 2, req.query.mode === 'sold' ? 'sold' : 'active'));
   } catch (e) {
     res.status(500).json({ error: e.message, response: e.response?.data });
   }

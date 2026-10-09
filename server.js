@@ -86,6 +86,14 @@ async function ensureSchema() {
     `UPDATE ingest_runs SET error = 'interrupted: server restarted before this fetch finished (redeploy or spin-down)', finished_at = NOW()
      WHERE finished_at IS NULL AND started_at < NOW() - INTERVAL '2 minutes'`);
   if (r.rowCount) console.log(`Marked ${r.rowCount} interrupted ingest run(s)`);
+  // Placeholder rows from before real sources were connected must not count as market data.
+  if (process.env.SAMPLE_DATA !== 'true') {
+    const d = await pool.query(`DELETE FROM listings WHERE title LIKE 'SAMPLE:%' OR source_id LIKE 'sample-%'`);
+    if (d.rowCount) {
+      console.log(`Removed ${d.rowCount} sample listing(s)`);
+      require('./lib/pricing').recalculateAll().catch(e => console.error('recalc after sample purge failed:', e.message));
+    }
+  }
 }
 
 const PORT = Number(process.env.PORT || 3000);

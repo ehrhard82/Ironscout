@@ -5,6 +5,7 @@
   <div class="section"><h2>Fetch listings</h2><div class="card"><div class="row">
     <input id="ingest-term" placeholder="machine to fetch (e.g. dozer)" list="products"><datalist id="products"></datalist>
     <button class="primary" id="ingest-btn">Fetch now</button>
+    <button id="sold-btn" title="Pull completed sales (hammer prices) for this machine now">Fetch sold prices</button>
     <button id="recalc-btn" title="Rebuild deals from existing listings without fetching">Recalculate deals</button>
     <button id="alerts-btn" title="Send any due hourly/daily/weekly digests now">Send due alerts</button>
     <span id="ingest-msg" class="ok small"></span>
@@ -61,6 +62,7 @@ $('test-btn').onclick = async () => {
       (r.results.map(x => `<div>${x.ok ? '✅' : '❌'} <b>${esc(x.source)}</b> — ${x.ok ? `${x.items} items in ${x.seconds}s: ${esc(x.first || '')}` : `<span style="color:var(--warn)">${esc(x.error || `0 items (${x.run_status || 'no run'}) in ${x.seconds}s`)}</span>`}</div>`).join('') || '<div>No Apify sources enabled.</div>');
   } catch (e) { $('test-out').textContent = 'Test failed: ' + e.message; }
 };
+$('sold-btn').onclick = async () => { const t = $('ingest-term').value.trim(); if (!t) return; try { await api('/api/admin/ingest-sold', { method: 'POST', body: { product: t } }); $('ingest-msg').textContent = `Fetching sold prices for "${t}"… check runs in a few minutes.`; } catch (e) { alert(e.message); } };
 $('recalc-btn').onclick = async () => { const r = await api('/api/admin/recalculate', { method: 'POST' }); $('ingest-msg').textContent = r.results.map(x => `${x.product}: ${x.deals} deals`).join(' · '); };
 $('alerts-btn').onclick = async () => { const r = await api('/api/admin/alerts/run', { method: 'POST' }); $('ingest-msg').textContent = `${r.sent} sent, ${r.skipped_not_due} not due yet`; };
 $('nu-btn').onclick = async () => { $('nu-msg').textContent = ''; try { await api('/api/admin/users', { method: 'POST', body: { email: $('nu-email').value, password: $('nu-pw').value, name: $('nu-name').value, role: $('nu-role').value } }); $('nu-email').value = $('nu-pw').value = $('nu-name').value = ''; load(); } catch (e) { $('nu-msg').textContent = e.message; } };

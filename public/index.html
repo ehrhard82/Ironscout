@@ -64,11 +64,13 @@ async function go(q) {
   const states = m.by_state.slice(0, 6).map(s => `${esc(s.region)} ${money(s.median_price)} <span class="muted">(${s.sample_size})</span>`).join(' &nbsp;·&nbsp; ');
   $('result').innerHTML = `
     <div class="market">
-      <div class="stat"><div class="v">${m.us_median ? money(m.us_median) : '—'}</div><div class="l">US median price</div></div>
+      <div class="stat"><div class="v">${m.us_median ? money(m.us_median) : '—'}</div><div class="l">${m.basis === 'sold' ? `Market value — from ${m.sample_size} actual sales` : `Market value — asking prices (${m.sample_size})`}</div></div>
       <div class="stat"><div class="v">${m.us_p25 && m.us_p75 ? money(m.us_p25) + '–' + money(m.us_p75) : '—'}</div><div class="l">Typical range (25th–75th)</div></div>
       <div class="stat"><div class="v">${r.active_listings}</div><div class="l">Active listings tracked</div></div>
       <div class="stat"><div class="v">${r.all_deals}</div><div class="l">Priced under market</div></div>
     </div>
+    ${r.recent_sales && r.recent_sales.length ? `<div class="heading"><details style="width:100%"><summary class="small" style="cursor:pointer">Recent sales we've seen (${r.sales_count}) — what these actually sold for</summary>
+      <div class="small" style="margin-top:8px">${r.recent_sales.map(x => `<div style="padding:5px 0;border-bottom:1px solid var(--line)"><b>${money(x.price)}</b> · ${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title)} <span class="muted">· ${[x.city, x.state].filter(Boolean).join(', ')}${x.hours ? ` · ${Number(x.hours).toLocaleString()} hrs` : ''}${x.sold_at ? ` · ${new Date(x.sold_at).toLocaleDateString()}` : ''} · ${esc(x.source)}</span></div>`).join('')}</div></details></div>` : ''}
     ${states ? `<div class="heading"><div class="small muted">By state: ${states}</div></div>` : ''}
     <div class="heading">
       <h3>${esc(r.product.name)} — ${r.count} deal${r.count === 1 ? '' : 's'} ${r.filters_applied ? 'matching your settings' : '(all deals, settings ignored)'}</h3>
