@@ -4,7 +4,7 @@
   .machines { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:8px; }
   .machines label { display:flex; gap:10px; align-items:center; background:#1c2029; border:1px solid var(--line); border-radius:10px; padding:10px 12px; cursor:pointer; font-size:15px; }
   .machines label:has(input:checked) { border-color:var(--accent); }
-  .machines input { width:18px; height:18px; min-width:0; accent-color:var(--accent); }
+  .machines input { width:18px; height:18px; min-width:0; flex:0 0 18px; padding:0; margin:0; accent-color:var(--accent); }
   .field { display:flex; flex-direction:column; gap:4px; min-width:160px; } .field span { color:var(--muted); font-size:13px; }
   .radios { display:flex; gap:8px; flex-wrap:wrap; } .radios label { background:#1c2029; border:1px solid var(--line); border-radius:999px; padding:8px 14px; cursor:pointer; }
   .radios label:has(input:checked) { border-color:var(--accent); color:var(--accent); } .radios input { display:none; }
@@ -31,11 +31,11 @@
   <div class="section">
     <h2>What counts as a deal for me</h2>
     <div class="card"><div class="row">
-      <div class="field"><span>States (blank = anywhere in US)</span><input id="states" placeholder="TX, OK, LA"></div>
-      <div class="field"><span>At least this % below market</span><input id="min_discount" type="number" min="0" max="90" step="1"></div>
-      <div class="field"><span>At least this much margin ($)</span><input id="min_margin" type="number" min="0" step="500"></div>
-      <div class="field"><span>Max price ($, optional)</span><input id="max_price" type="number" min="0" step="1000"></div>
-      <div class="field"><span>Newest year I'd go back to (optional)</span><input id="min_year" type="number" min="1970" max="2030"></div>
+      <div class="field"><span>Only in these states (leave blank for anywhere in the US)</span><input id="states" placeholder="TX, OK, LA"></div>
+      <div class="field"><span>At least this much cheaper than market (%) — 10 means 10% under</span><input id="min_discount" type="number" min="0" max="90" step="1"></div>
+      <div class="field"><span>At least this much profit on the table ($) — e.g. 5000</span><input id="min_margin" type="number" min="0" step="500"></div>
+      <div class="field"><span>Don't show me anything over ($, optional)</span><input id="max_price" type="number" min="0" step="1000"></div>
+      <div class="field"><span>Oldest model year I'd consider (optional)</span><input id="min_year" type="number" min="1970" max="2030" placeholder="e.g. 2010"></div>
     </div></div>
   </div>
 
@@ -85,7 +85,7 @@ async function load() {
 
   const st = await api('/api/billing/status');
   if (user.role !== 'subscriber') {
-    $('plan-body').innerHTML = `Signed in as <b>${esc(user.role)}</b>. No subscription needed.`;
+    $('plan').style.display = 'none';
   } else {
     const label = { none: 'No subscription yet', trialing: 'Free trial', active: 'Active', past_due: 'Payment failed — update your card', canceled: 'Canceled', unpaid: 'Unpaid' }[st.subscription_status] || st.subscription_status;
     const until = st.subscription_ends_at ? ` · access until ${new Date(st.subscription_ends_at).toLocaleDateString()}` : '';
