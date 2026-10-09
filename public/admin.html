@@ -42,7 +42,7 @@ async function load() {
     <td>${u.role === 'subscriber' && !['active','trialing'].includes(u.subscription_status) ? `<button onclick="patchUser(${u.id},{subscription_status:'active',subscription_ends_at:'${new Date(Date.now()+365*86400000).toISOString()}'})" title="Give free access for a year">Comp 1 yr</button>` : ''}</td></tr>`).join('');
   $('host').textContent = location.host;
   $('sources').textContent = (runs.sources || []).join(', ');
-  $('busy').textContent = runs.busy ? '· a fetch is running right now' : '';
+  $('busy').textContent = (runs.busy ? '· a fetch is running right now ' : '') + (runs.budget ? `· Apify today: ${runs.budget.used} of ${runs.budget.cap} listings` : '');
   $('runs').innerHTML = runs.runs.slice(0, 30).map(r => {
     const secs = r.finished_at ? Math.round((new Date(r.finished_at) - new Date(r.started_at)) / 1000) + 's' : 'running…';
     const status = r.error ? `<span style="color:var(--warn)">${esc(r.error)}</span>` : esc(r.note || '');

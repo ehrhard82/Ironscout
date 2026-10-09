@@ -11,7 +11,7 @@ const { getOrCreateProduct, upsertListing, upsertSale, deactivateStale } = requi
 const { recalculateProduct } = require('../lib/pricing');
 const { sendDigests } = require('../lib/alerts');
 
-const SOLD_EVERY_DAYS = Number(process.env.SOLD_REFRESH_DAYS || 7);
+const SOLD_EVERY_DAYS = Number(process.env.SOLD_REFRESH_DAYS || 30);
 
 /** Pull completed sales (hammer prices) for a product from every source that has them. */
 async function ingestSold(productId, term, { force = false } = {}) {
