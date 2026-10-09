@@ -83,10 +83,18 @@ async function ingestProduct(term, { sold = true } = {}) {
   console.log(`  -> ${r.deals} deals flagged out of ${r.listings} active listings`);
 }
 
+/** What the daily run refreshes: every machine someone is watching, plus TRACKED_PRODUCTS. */
+async function scheduledTerms() {
+  const env = (process.env.TRACKED_PRODUCTS || '').split(',').map(s => s.trim()).filter(Boolean);
+  const watched = (await pool.query(`SELECT DISTINCT p.name FROM products p JOIN watchlists w ON w.product_id = p.id ORDER BY p.name`)).rows.map(r => r.name);
+  const terms = [...new Set([...env, ...watched])];
+  return terms.length ? terms : ['wheel loader'];
+}
+
 async function main() {
   const args = process.argv.slice(2).filter(Boolean);
-  const terms = args.length ? args
-    : (process.env.TRACKED_PRODUCTS || 'bobcat skid steer').split(',').map(s => s.trim()).filter(Boolean);
+  const terms = args.length ? args : await scheduledTerms();
+  console.log(`Refreshing ${terms.length} machine(s): ${terms.join(', ')}`);
 
   for (const t of terms) await ingestProduct(t);
   const stale = await deactivateStale(14);
@@ -99,4 +107,4 @@ async function main() {
 if (require.main === module) {
   main().then(() => pool.end()).catch(e => { console.error(e); pool.end(); process.exit(1); });
 }
-module.exports = { ingestProduct, ingestSold, main };
+module.exports = { ingestProduct, ingestSold, scheduledTerms, main };

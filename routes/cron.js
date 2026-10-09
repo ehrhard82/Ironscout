@@ -2,7 +2,7 @@
 // Needed when the server can't keep its own timer running — e.g. a free-tier host that
 // sleeps when idle. Protected by CRON_SECRET in .env; pass it as ?key= or header x-cron-key.
 //
-//   GET /api/cron/ingest?key=...   -> fetch all TRACKED_PRODUCTS, recalc, send realtime alerts
+//   GET /api/cron/ingest?key=...   -> refresh every watched machine (+TRACKED_PRODUCTS), recalc, realtime alerts
 //   GET /api/cron/alerts?key=...   -> send any due hourly/daily/weekly digests
 //   GET /api/cron/ping?key=...     -> does nothing but keeps a sleepy host awake
 //
@@ -10,11 +10,11 @@
 // (6am), alerts every 15 minutes. Both respond immediately and do the work in the
 // background so the scheduler never times out.
 const router = require('express').Router();
-const { main: ingestAll } = require('../scripts/ingest');
+const { scheduledTerms } = require('../scripts/ingest');
+const ingestQueue = require('../lib/ingestQueue');
+const { deactivateStale } = require('../lib/listings');
 const { sendDigests } = require('../lib/alerts');
 const { purgeExpiredSessions } = require('../lib/auth');
-
-let ingesting = false;
 
 router.use((req, res, next) => {
   const key = req.query.key || req.headers['x-cron-key'];
@@ -23,11 +23,13 @@ router.use((req, res, next) => {
   next();
 });
 
-router.get('/ingest', (req, res) => {
-  if (ingesting) return res.json({ started: false, reason: 'already running' });
-  ingesting = true;
-  res.json({ started: true });
-  ingestAll().catch(e => console.error('cron ingest failed:', e)).finally(() => { ingesting = false; });
+router.get('/ingest', async (req, res) => {
+  try {
+    const terms = await scheduledTerms();
+    for (const t of terms) ingestQueue.enqueue(t);          // one at a time, after anything already running
+    deactivateStale(14).catch(() => {});
+    res.json({ started: true, machines: terms, ...ingestQueue.status() });
+  } catch (e) { res.status(500).json({ started: false, error: e.message }); }
 });
 
 router.get('/alerts', (req, res) => {
