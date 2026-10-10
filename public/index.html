@@ -80,7 +80,7 @@ async function go(q) {
       <div class="small"><label class="muted">Sort <select id="sort" onchange="sortBy=this.value;renderDeals()"><option value="score">best first</option><option value="ending">ending soonest</option><option value="margin">biggest profit</option><option value="price">cheapest</option><option value="newest">newest</option></select></label></div>
       <div class="small">
         ${r.filters_applied ? `<a href="#" onclick="showAll=true;go(current);return false">Show all ${r.all_deals} deals</a>` : `<a href="#" onclick="showAll=false;go(current);return false">Apply my settings</a>`}
-        &nbsp;·&nbsp; <a href="/account.html">Change settings</a>
+        &nbsp;·&nbsp; <a href="/account.html">Change settings</a>${r.yard ? '' : ' &nbsp;·&nbsp; <a href="/account.html#yard">Set my yard for delivered prices</a>'}
         &nbsp;·&nbsp; ${r.watched ? `<span class="muted">★ On your watchlist</span>` : `<a href="#" onclick="watch(${r.product.id});return false">★ Watch this machine</a>`}
         ${r.last_updated ? `&nbsp;·&nbsp; <span class="muted">updated ${new Date(r.last_updated).toLocaleString()}</span>` : ''}
       </div>

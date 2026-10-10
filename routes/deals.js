@@ -3,12 +3,13 @@
 const router = require('express').Router();
 const pool = require('../lib/db');
 const { BUYERS_SQL, BUYER_COUNT_SQL, isStaff } = require('../lib/buyers');
+const { attachLanded } = require('../lib/landed');
 
 const DEAL_SELECT = `
   SELECT d.id, d.deal_score, d.discount_percent, d.discount_amount, d.estimated_margin, d.market_price,
          d.compared_to, d.commission_status, d.flagged_at,
          l.id AS listing_id, l.title, l.price, l.condition, l.year, l.hours,
-         l.city, l.state, l.zip_code, l.url, l.image_url, l.seller_name, l.source, l.sale_type, l.auction_ends, l.posted_date,
+         l.city, l.state, l.zip_code, l.latitude, l.longitude, l.url, l.image_url, l.seller_name, l.source, l.sale_type, l.auction_ends, l.posted_date,
          p.name AS product
   FROM deals d
   JOIN listings l ON l.id = d.listing_id
@@ -49,7 +50,8 @@ router.get('/', async (req, res, next) => {
     const sql = `${select} ${where.length ? 'AND ' + where.join(' AND ') : ''}
                  ORDER BY ${order} LIMIT $${params.length}`;
     const r = await pool.query(sql, params);
-    res.json({ count: r.rows.length, deals: r.rows });
+    const u = (await pool.query('SELECT yard_city, yard_state FROM users WHERE id = $1', [req.user.id])).rows[0] || {};
+    res.json({ count: r.rows.length, deals: attachLanded(r.rows, u) });
   } catch (e) { next(e); }
 });
 

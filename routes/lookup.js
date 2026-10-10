@@ -10,6 +10,7 @@ const pool = require('../lib/db');
 const { requireAccess } = require('../lib/auth');
 const { matchSql, effective, DEAL_COLS } = require('./watchlists');
 const { BUYERS_SQL, isStaff } = require('../lib/buyers');
+const { attachLanded } = require('../lib/landed');
 
 router.get('/', requireAccess, async (req, res, next) => {
   try {
@@ -63,7 +64,8 @@ router.get('/', requireAccess, async (req, res, next) => {
       sales_count: salesCount.rows[0].n, recent_sales: salesRows.rows,
       ...counts.rows[0],
       filters_applied: !ignoreSettings, filters: ignoreSettings ? null : f,
-      count: deals.rows.length, deals: deals.rows,
+      count: deals.rows.length, deals: attachLanded(deals.rows, u),
+      yard: u.yard_state ? { city: u.yard_city, state: u.yard_state } : null,
     });
   } catch (e) { next(e); }
 });

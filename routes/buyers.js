@@ -107,7 +107,7 @@ router.get('/:id/matches', async (req, res, next) => {
           AND (bw.states IS NULL OR cardinality(bw.states) = 0 OR l.state = ANY(bw.states))
           AND (bw.min_year IS NULL OR l.year IS NULL OR l.year >= bw.min_year))
       ORDER BY d.deal_score DESC LIMIT 100`, [req.params.id]);
-    res.json({ count: r.rows.length, deals: r.rows });
+    res.json({ count: r.rows.length, deals: require('../lib/landed').attachLanded(r.rows, {}) });
   } catch (e) { next(e); }
 });
 

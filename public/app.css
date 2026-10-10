@@ -61,3 +61,5 @@ table { white-space:nowrap; }
 .buyers { background:#2a2410; border:1px solid var(--accent); color:#ffd98a; border-radius:8px; padding:8px 10px; font-size:14px; }
 .buyers a { color:#ffd98a; }
 .pill { display:inline-block; background:#232835; border-radius:999px; padding:2px 10px; font-size:12px; margin:2px 4px 2px 0; }
+
+.landed { background:#121922; border:1px solid var(--line); border-radius:8px; padding:8px 10px; }

@@ -46,7 +46,7 @@ async function fullUser(id) {
 
 const DEAL_COLS = `
   d.id, d.deal_score, d.discount_percent, d.estimated_margin, d.market_price, d.compared_to, d.flagged_at, d.commission_status,
-  l.title, l.price, l.year, l.hours, l.city, l.state, l.url, l.image_url, l.source, l.sale_type, l.auction_ends, p.name AS product`;
+  l.title, l.price, l.year, l.hours, l.city, l.state, l.latitude, l.longitude, l.url, l.image_url, l.source, l.sale_type, l.auction_ends, p.name AS product`;
 
 router.get('/', async (req, res, next) => {
   try {
@@ -112,7 +112,7 @@ router.get('/deals', async (req, res, next) => {
       FROM deals d JOIN listings l ON l.id = d.listing_id JOIN products p ON p.id = d.product_id
       LEFT JOIN saved_deals sd ON sd.deal_id = d.id AND sd.user_id = $1
       WHERE ${matchSql(f, params)} ORDER BY d.deal_score DESC LIMIT 300`, params);
-    res.json({ count: r.rows.length, deals: r.rows });
+    res.json({ count: r.rows.length, deals: require('../lib/landed').attachLanded(r.rows, u) });
   } catch (e) { next(e); }
 });
 
