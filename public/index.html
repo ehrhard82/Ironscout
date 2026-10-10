@@ -77,7 +77,8 @@ async function go(q) {
     ${states ? `<div class="heading"><div class="small muted">By state: ${states}</div></div>` : ''}
     <div class="heading">
       <h3>${esc(r.product.name)} — ${r.count} deal${r.count === 1 ? '' : 's'} ${r.filters_applied ? 'matching your settings' : '(all deals, settings ignored)'}</h3>
-      <div class="small"><label class="muted">Sort <select id="sort" onchange="sortBy=this.value;renderDeals()"><option value="score">best first</option><option value="ending">ending soonest</option><option value="margin">biggest profit</option><option value="price">cheapest</option><option value="newest">newest</option></select></label></div>
+      <div class="small"><label class="muted">Sort <select id="sort" onchange="sortBy=this.value;renderDeals()"><option value="score">best first</option><option value="ending">ending soonest</option><option value="margin">biggest profit</option><option value="price">cheapest</option><option value="newest">newest</option></select></label>
+        &nbsp; <label class="muted">Show <select id="kind" onchange="kindFilter=this.value;renderDeals()"><option value="all">everything</option><option value="listing">buy now only</option><option value="auction">auctions only</option></select></label></div>
       <div class="small">
         ${r.filters_applied ? `<a href="#" onclick="showAll=true;go(current);return false">Show all ${r.all_deals} deals</a>` : `<a href="#" onclick="showAll=false;go(current);return false">Apply my settings</a>`}
         &nbsp;·&nbsp; <a href="/account.html">Change settings</a>${r.yard ? '' : ' &nbsp;·&nbsp; <a href="/account.html#yard">Set my yard for delivered prices</a>'}
@@ -86,9 +87,9 @@ async function go(q) {
       </div>
     </div>`;
   savedIds = new Set(r.deals.filter(d => d.saved).map(d => d.id));
-  lastResult = r; $('sort').value = sortBy; renderDeals();
+  lastResult = r; $('sort').value = sortBy; $('kind').value = kindFilter; renderDeals();
 }
-let lastResult = null, sortBy = 'score';
+let lastResult = null, sortBy = 'score', kindFilter = 'all';
 function renderDeals() {
   const r = lastResult; if (!r) return;
   const far = 8.64e15;
@@ -99,9 +100,9 @@ function renderDeals() {
     price: (a, b) => a.price - b.price,
     newest: (a, b) => new Date(b.flagged_at) - new Date(a.flagged_at),
   };
-  const deals = [...r.deals].sort(sorters[sortBy] || sorters.score);
+  const deals = [...r.deals].filter(d => kindFilter === 'all' || (kindFilter === 'auction' ? d.sale_type === 'auction' : d.sale_type !== 'auction')).sort(sorters[sortBy] || sorters.score);
   $('list').innerHTML = deals.length ? deals.map(d => dealCard(d, { saved: d.saved })).join('')
-    : `<div class="empty">Nothing under market right now${r.filters_applied ? ' that clears your settings' : ''}.<br>${r.watched ? 'You\'ll be alerted when one shows up.' : `<button class="primary" style="margin-top:12px" onclick="watch(${r.product.id})">★ Watch this machine and alert me</button>`}</div>`;
+    : `<div class="empty">Nothing under market right now${r.filters_applied ? ' that clears your settings' : ''}${kindFilter !== 'all' ? ` (${kindFilter === 'auction' ? 'auctions' : 'buy-now listings'} only)` : ''}.<br>${r.watched ? 'You\'ll be alerted when one shows up.' : `<button class="primary" style="margin-top:12px" onclick="watch(${r.product.id})">★ Watch this machine and alert me</button>`}</div>`;
 }
 async function watch(id) { await api('/api/watchlists', { method: 'POST', body: { product_id: id } }); go(current); }
 let pollTimer = null;
