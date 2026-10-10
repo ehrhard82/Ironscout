@@ -2,7 +2,7 @@
 // GET /api/deals/:id        one deal with full listing + market context
 const router = require('express').Router();
 const pool = require('../lib/db');
-const { BUYERS_SQL, BUYER_COUNT_SQL, isStaff } = require('../lib/buyers');
+const { buyersSql, buyerCountSql, isStaff } = require('../lib/buyers');
 const { attachLanded } = require('../lib/landed');
 
 const DEAL_SELECT = `
@@ -33,7 +33,7 @@ router.get('/', async (req, res, next) => {
     if (minMargin) add('d.estimated_margin >= ?', Number(minMargin));
     if (minScore) add('d.deal_score >= ?', Number(minScore));
     if (status && status !== 'all') add('d.commission_status = ?', status);
-    if (staff && hasBuyer === '1') where.push(`${BUYER_COUNT_SQL} > 0`);
+    if (staff && hasBuyer === '1') where.push(`${buyerCountSql(req.user)} > 0`);
 
     const order = {
       score: 'd.deal_score DESC, d.discount_percent DESC',
@@ -42,11 +42,11 @@ router.get('/', async (req, res, next) => {
       margin: 'd.estimated_margin DESC',
       price_low: 'l.price ASC',
       newest: 'l.posted_date DESC NULLS LAST',
-      buyers: `${BUYER_COUNT_SQL} DESC, d.deal_score DESC`,
+      buyers: `${staff ? buyerCountSql(req.user) : '0'} DESC, d.deal_score DESC`,
     }[sort] || 'd.deal_score DESC';
 
     params.push(Math.min(Number(limit) || 50, 500));
-    const select = staff ? DEAL_SELECT.replace('p.name AS product', `p.name AS product, d.buyer_id, ${BUYERS_SQL}`) : DEAL_SELECT;
+    const select = staff ? DEAL_SELECT.replace('p.name AS product', `p.name AS product, d.buyer_id, ${buyersSql(req.user)}`) : DEAL_SELECT;
     const sql = `${select} ${where.length ? 'AND ' + where.join(' AND ') : ''}
                  ORDER BY ${order} LIMIT $${params.length}`;
     const r = await pool.query(sql, params);

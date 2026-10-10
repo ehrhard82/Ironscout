@@ -48,7 +48,12 @@ router.get('/dashboard', async (req, res, next) => {
 
 router.post('/deals/:id/claim', async (req, res, next) => {
   try {
-    const d = await setStatus(req.params.id, 'claimed', { buyer_id: req.body?.buyer_id ? Number(req.body.buyer_id) : null }, req.body?.notes);
+    let buyerId = req.body?.buyer_id ? Number(req.body.buyer_id) : null;
+    if (buyerId) {   // only one of YOUR buyers can be attached
+      const own = await pool.query('SELECT 1 FROM buyers WHERE id = $1 AND owner_user_id = $2', [buyerId, req.user.id]);
+      if (!own.rows.length) buyerId = null;
+    }
+    const d = await setStatus(req.params.id, 'claimed', { buyer_id: buyerId }, req.body?.notes);
     d ? res.json(d) : res.status(404).json({ error: 'Deal not found' });
   } catch (e) { next(e); }
 });

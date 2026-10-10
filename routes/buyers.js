@@ -1,4 +1,5 @@
-// The broker team's buyer book (admin + broker only).
+// A person's own buyer book (admin + broker only). Buyers are PRIVATE: every query below is
+// limited to buyers.owner_user_id = the logged-in user. Nobody (admin included) sees anyone else's.
 //
 // GET    /api/buyers                      all active buyers with their wants
 // POST   /api/buyers                      { company, contact_name, phone, email, city, state, notes, status, wants:[{product, max_price, states, min_year, notes}] }
@@ -8,7 +9,7 @@
 // GET    /api/buyers/:id/matches          open deals that match this buyer's wants
 const router = require('express').Router();
 const pool = require('../lib/db');
-const { BUYERS_SQL } = require('../lib/buyers');
+const { buyersSql } = require('../lib/buyers');
 const { DEAL_COLS } = require('./watchlists');
 
 const STATE = (s) => String(s || '').trim().toUpperCase().slice(0, 2) || null;
@@ -31,7 +32,7 @@ async function addWant(buyerId, w) {
   return r.rows[0].id;
 }
 
-async function list(where = 'b.active', params = []) {
+async function list(where = 'b.active', params = []) {   // callers always pass an owner filter
   const r = await pool.query(`
     SELECT b.*, u.name AS owner_name, u.email AS owner_email,
       (SELECT COALESCE(json_agg(json_build_object('id', bw.id, 'product', p.name, 'product_id', bw.product_id, 'max_price', bw.max_price,
@@ -47,8 +48,15 @@ async function list(where = 'b.active', params = []) {
   return r.rows;
 }
 
+/** True only if buyer :id belongs to the logged-in user. */
+async function owns(req, id) {
+  const r = await pool.query('SELECT 1 FROM buyers WHERE id = $1 AND owner_user_id = $2', [id, req.user.id]);
+  return r.rows.length > 0;
+}
+const mine = async (req, res, next) => { try { (await owns(req, req.params.id)) ? next() : res.status(404).json({ error: 'Not found' }); } catch (e) { next(e); } };
+
 router.get('/', async (req, res, next) => {
-  try { res.json({ buyers: await list(req.query.all === '1' ? 'TRUE' : 'b.active') }); } catch (e) { next(e); }
+  try { res.json({ buyers: await list(req.query.all === '1' ? 'b.owner_user_id = $1' : 'b.active AND b.owner_user_id = $1', [req.user.id]) }); } catch (e) { next(e); }
 });
 
 router.post('/', async (req, res, next) => {
@@ -62,11 +70,11 @@ router.post('/', async (req, res, next) => {
        b.status === 'prospect' ? 'prospect' : 'customer', req.user.id]);
     const id = r.rows[0].id;
     for (const w of (Array.isArray(b.wants) ? b.wants : [])) await addWant(id, w);
-    res.status(201).json({ buyer: (await list('b.id = $1', [id]))[0] });
+    res.status(201).json({ buyer: (await list('b.id = $1 AND b.owner_user_id = $2', [id, req.user.id]))[0] });
   } catch (e) { next(e); }
 });
 
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', mine, async (req, res, next) => {
   try {
     const b = req.body || {};
     const r = await pool.query(
@@ -77,29 +85,29 @@ router.patch('/:id', async (req, res, next) => {
       [req.params.id, b.company || null, b.contact_name ?? null, b.phone ?? null, b.email ?? null, b.city ?? null,
        b.state ? STATE(b.state) : null, b.notes ?? null, b.status || null, typeof b.active === 'boolean' ? b.active : null]);
     if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
-    res.json({ buyer: (await list('b.id = $1', [req.params.id]))[0] });
+    res.json({ buyer: (await list('b.id = $1 AND b.owner_user_id = $2', [req.params.id, req.user.id]))[0] });
   } catch (e) { next(e); }
 });
 
-router.post('/:id/wants', async (req, res, next) => {
+router.post('/:id/wants', mine, async (req, res, next) => {
   try {
     const id = await addWant(req.params.id, req.body || {});
     if (!id) return res.status(400).json({ error: 'Machine is required' });
-    res.status(201).json({ buyer: (await list('b.id = $1', [req.params.id]))[0] });
+    res.status(201).json({ buyer: (await list('b.id = $1 AND b.owner_user_id = $2', [req.params.id, req.user.id]))[0] });
   } catch (e) { next(e); }
 });
 
 router.delete('/wants/:wantId', async (req, res, next) => {
   try {
-    await pool.query('UPDATE buyer_wants SET active = FALSE WHERE id = $1', [req.params.wantId]);
+    await pool.query('UPDATE buyer_wants SET active = FALSE WHERE id = $1 AND buyer_id IN (SELECT id FROM buyers WHERE owner_user_id = $2)', [req.params.wantId, req.user.id]);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
 
-router.get('/:id/matches', async (req, res, next) => {
+router.get('/:id/matches', mine, async (req, res, next) => {
   try {
     const r = await pool.query(`
-      SELECT ${DEAL_COLS}, ${BUYERS_SQL}
+      SELECT ${DEAL_COLS}, ${buyersSql(req.user)}
       FROM deals d JOIN listings l ON l.id = d.listing_id JOIN products p ON p.id = d.product_id
       WHERE l.is_active AND d.commission_status <> 'passed'
         AND EXISTS (SELECT 1 FROM buyer_wants bw WHERE bw.buyer_id = $1 AND bw.active AND bw.product_id = d.product_id
