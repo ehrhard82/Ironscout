@@ -14,7 +14,7 @@ app.disable('x-powered-by');
 // Stripe webhook must see the raw body, so it is mounted before the JSON parser.
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), billing.webhook);
 
-app.use(express.json({ limit: '200kb' }));
+app.use(express.json({ limit: '3mb' }));   // sales imports can be a few thousand rows
 app.use(cookieParser());
 app.use(auth.attachUser);
 

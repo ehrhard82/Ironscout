@@ -11,6 +11,16 @@
     <span id="ingest-msg" class="ok small"></span>
   </div><div class="muted small" style="margin-top:8px">Fetching costs Apify credit per listing. The scheduler already does this for TRACKED_PRODUCTS; use this for one-offs.</div></div></div>
 
+  <div class="section"><h2>Import sold prices</h2><div class="card">
+    <div class="muted small">Load a dealer's own sold history so market values are backed by real sales. A spreadsheet saved as CSV with a header row: <b>machine, title, price</b> required; <b>sold_date, year, hours, city, state, url, serial</b> optional. Example:</div>
+    <pre class="small" style="white-space:pre-wrap;background:#0b0d12;padding:8px;border-radius:8px">machine,title,price,sold_date,year,hours,city,state
+frac pump,2014 SPM QWS 2500 frac pump on Kenworth T800,185000,2026-08-14,2014,,Levelland,TX
+winch truck,2016 Peterbilt 367 winch truck,98500,2026-09-02,2016,210000,Odessa,TX</pre>
+    <div class="row" style="margin-top:8px"><input id="imp-source" placeholder="source name (e.g. repforce)" style="min-width:160px"><input type="file" id="imp-file" accept=".csv,text/csv"><span class="muted small">or paste rows below</span></div>
+    <textarea id="imp-text" rows="4" style="width:100%;margin-top:8px" placeholder="machine,title,price,sold_date,..."></textarea>
+    <div class="row" style="margin-top:8px"><button class="primary" id="imp-btn">Import</button><span id="imp-msg" class="small"></span></div>
+  </div></div>
+
   <div class="section"><h2>Requests from subscribers</h2><div class="card"><table id="requests"><thead><tr><th>Machine</th><th>From</th><th>When</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div></div>
 
   <div class="section"><h2>Users</h2><div class="card">
@@ -55,6 +65,18 @@ async function act(path, body) { try { await api(path, { method: 'POST', body })
 async function patchUser(id, body) { try { await api('/api/admin/users/' + id, { method: 'PATCH', body }); load(); } catch (e) { alert(e.message); } }
 $('ingest-btn').onclick = async () => { const t = $('ingest-term').value.trim(); if (!t) return; try { await api('/api/admin/ingest', { method: 'POST', body: { product: t } }); $('ingest-msg').textContent = `Fetching "${t}"… check runs in a minute.`; } catch (e) { alert(e.message); } };
 $('refresh-btn').onclick = () => load();
+$('imp-btn').onclick = async () => {
+  $('imp-msg').className = 'small'; $('imp-msg').textContent = 'Importing…';
+  try {
+    let csv = $('imp-text').value.trim();
+    const f = $('imp-file').files[0];
+    if (f) csv = await f.text();
+    if (!csv) { $('imp-msg').textContent = 'Pick a file or paste rows first.'; return; }
+    const r = await api('/api/admin/import-sales', { method: 'POST', body: { csv, source: $('imp-source').value || 'import' } });
+    $('imp-msg').className = 'small ok'; $('imp-msg').textContent = `Imported ${r.imported} sale${r.imported === 1 ? '' : 's'} across ${r.machines} machine${r.machines === 1 ? '' : 's'}${r.skipped ? `, skipped ${r.skipped}` : ''}.${r.problems.length ? ' ' + r.problems.join(' · ') : ''}`;
+    $('imp-text').value = ''; $('imp-file').value = '';
+  } catch (e) { $('imp-msg').className = 'small err'; $('imp-msg').textContent = e.message; }
+};
 $('test-btn').onclick = async () => {
   $('test-out').textContent = 'Testing… this takes a minute or two, leave the page open.';
   try {

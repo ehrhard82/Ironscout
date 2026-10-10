@@ -2,7 +2,8 @@
 // POST /api/admin/ingest { product }    kick off an ingest for one product from the web UI
 // POST /api/admin/recalculate           rebuild deals without re-fetching
 // GET  /api/admin/runs                  last 50 ingest runs (spot a dead source)
-const router = require('express').Router();
+const express = require('express');
+const router = express.Router();
 const pool = require('../lib/db');
 const ingestQueue = require('../lib/ingestQueue');
 const { recalculateAll } = require('../lib/pricing');
@@ -145,6 +146,48 @@ router.get('/debug/sources', async (req, res) => {
     }
   }));
   res.json(out);
+});
+
+// POST /api/admin/import-sales  { csv, source }
+// Load completed sales from a spreadsheet (CSV text). Columns (header row, any order, case-insensitive):
+//   machine, title, price            required   (machine = what we track it as, e.g. "frac pump")
+//   sold_date, year, hours, city, state, url, serial, notes    optional
+// Rows become rows in `sales` with source = <source> (default "import"), so a dealer's own
+// sold history can back market values for machines the auctions rarely show.
+router.post('/import-sales', express.text({ type: '*/*', limit: '5mb' }), async (req, res, next) => {
+  try {
+    const { parse } = require('csv-parse/sync');
+    const { getOrCreateProduct, upsertSale } = require('../lib/listings');
+    const { recalculateProduct } = require('../lib/pricing');
+    let body = req.body;
+    if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = { csv: body }; } }
+    const csv = String(body.csv || '').trim();
+    const source = String(body.source || 'import').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40) || 'import';
+    if (!csv) return res.status(400).json({ error: 'No rows found' });
+    let rows;
+    try { rows = parse(csv, { columns: (h) => h.map(x => String(x).trim().toLowerCase().replace(/\s+/g, '_')), skip_empty_lines: true, trim: true, relax_column_count: true }); }
+    catch (e) { return res.status(400).json({ error: 'Could not read that as a spreadsheet: ' + e.message }); }
+    const pick = (r, ...names) => { for (const n of names) if (r[n] !== undefined && r[n] !== '') return r[n]; return null; };
+    const touched = new Set(); let ok = 0, skipped = 0; const problems = [];
+    for (const [i, r] of rows.entries()) {
+      const machine = pick(r, 'machine', 'product', 'category', 'type');
+      const title = pick(r, 'title', 'description', 'item', 'unit', 'name');
+      const price = Number(String(pick(r, 'price', 'sold_price', 'sale_price', 'sold', 'amount') || '').replace(/[^0-9.]/g, ''));
+      if (!machine || !title || !price) { skipped++; if (problems.length < 5) problems.push(`row ${i + 2}: needs machine, title and price`); continue; }
+      const pid = await getOrCreateProduct(machine);
+      touched.add(pid);
+      const soldAt = pick(r, 'sold_date', 'date', 'sold_at', 'sale_date');
+      const result = await upsertSale(pid, {
+        source, source_id: pick(r, 'serial', 'id', 'stock', 'stock_number') || require('crypto').createHash('md5').update(`${machine}|${title}|${price}|${soldAt || ''}`).digest('hex'),
+        title, price, year: pick(r, 'year', 'model_year'), hours: pick(r, 'hours', 'meter'),
+        city: pick(r, 'city', 'location'), state: pick(r, 'state', 'st'), url: pick(r, 'url', 'link'),
+        sold_at: soldAt ? new Date(soldAt) : null,
+      });
+      result === 'skipped' ? skipped++ : ok++;
+    }
+    for (const pid of touched) await recalculateProduct(pid);
+    res.json({ imported: ok, skipped, machines: touched.size, problems });
+  } catch (e) { next(e); }
 });
 
 // POST /api/admin/alerts/run   send any due digests now (what the scheduler does every 15 min)
