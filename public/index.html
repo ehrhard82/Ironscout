@@ -41,7 +41,20 @@ async function init() {
   const popular = prods.products.filter(p => !mine.includes(p.name)).slice(0, 8 - Math.min(mine.length, 8)).map(p => p.name);
   $('chips').innerHTML = [...mine.map(m => `<button onclick="go('${esc(m)}')" title="On your watchlist">★ ${esc(m)}</button>`), ...popular.map(m => `<button onclick="go('${esc(m)}')">${esc(m)}</button>`)].join('')
     + (mine.length ? `<button onclick="location.href='/mine.html'" style="border-color:var(--accent);color:var(--accent)">All my machines' deals →</button>` : '');
-  if (qs.get('q')) go(qs.get('q'));
+  if (qs.get('q')) go(qs.get('q')); else feed();
+}
+
+// Landing view: the best open deals across every machine, so a new account is never blank
+async function feed() {
+  $('list').innerHTML = '<div class="empty">Loading the best deals…</div>';
+  try {
+    const r = await api('/api/deals?limit=40&sort=score');
+    const deals = r.deals || [];
+    savedIds = new Set();
+    $('list').innerHTML = deals.length
+      ? '<h2 style="margin:6px 0 10px">Best deals right now</h2>' + deals.map(d => dealCard(d, { saved: false })).join('')
+      : '<div class="empty">No deals yet. Search a machine above to get started.</div>';
+  } catch (e) { $('list').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
 async function go(q) {
