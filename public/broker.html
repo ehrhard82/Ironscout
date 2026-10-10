@@ -15,7 +15,12 @@
 </style></head><body>
 <header id="hdr"></header>
 <main>
-  <div class="section">
+  <div class="section" style="margin-bottom:10px"><div class="tabs">
+    <button class="on" id="tab-deals" onclick="showTab('deals')">Deals to work</button>
+    <button id="tab-buyers" onclick="showTab('buyers')">Buyers</button>
+    <button class="primary" onclick="showTab('buyers');$('add-details').open=true;$('b-company').focus()">+ Add buyer</button>
+  </div></div>
+  <div class="section" id="pane-deals">
     <h2>Deals to work</h2>
     <div class="kpis" id="kpis"></div>
     <div class="tabs">
@@ -27,7 +32,7 @@
     <div id="deals" class="grid"></div>
   </div>
 
-  <div class="section">
+  <div class="section" id="pane-buyers" style="display:none">
     <h2>Buyers</h2>
     <p class="muted small">Who your team is buying for. Add a buyer and what they want; every matching deal will say so on the card and in the alert email, and the daily email puts those first.</p>
     <div class="card" style="margin-bottom:14px">
@@ -67,6 +72,13 @@ async function load() {
     <div class="kpi"><div class="v">${dash.sold}</div><div class="l">Sold</div></div>
     <div class="kpi"><div class="v">${money(dash.commission_earned)}</div><div class="l">Commission earned (${dash.commission_rate}%)</div></div>`;
   await Promise.all([reloadDeals(), loadBuyers()]);
+  if (location.hash === '#buyers') showTab('buyers');
+}
+function showTab(t) {
+  $('pane-deals').style.display = t === 'deals' ? '' : 'none';
+  $('pane-buyers').style.display = t === 'buyers' ? '' : 'none';
+  $('tab-deals').classList.toggle('on', t === 'deals'); $('tab-buyers').classList.toggle('on', t === 'buyers');
+  history.replaceState(null, '', '/broker.html' + (t === 'buyers' ? '#buyers' : ''));
 }
 function setStatus(s) { status = s; document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.status === s)); reloadDeals(); }
 async function reloadDeals() {

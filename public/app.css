@@ -28,7 +28,8 @@ main { padding:20px 24px; }
 .save { color:var(--good); font-weight:600; }
 .meta { color:var(--muted); font-size:13px; display:flex; gap:12px; flex-wrap:wrap; }
 .tag { background:#232835; padding:2px 8px; border-radius:999px; font-size:12px; }
-.actions { display:flex; gap:8px; margin-top:auto; padding-top:6px; } .actions button { flex:1; font-size:13px; }
+.actions { display:flex; gap:8px; margin-top:auto; padding-top:6px; flex-wrap:wrap; } .actions button { flex:1 1 90px; font-size:13px; white-space:nowrap; min-height:38px; }
+.actions a { flex:1 1 90px; display:flex; text-decoration:none; } .actions a button { width:100%; }
 .empty { overflow-wrap:anywhere; grid-column:1/-1; color:var(--muted); text-align:center; padding:50px 20px; max-width:720px; margin:0 auto; font-size:17px; }
 .status-claimed { border-color:var(--accent); } .status-sold { border-color:var(--good); } .status-passed { opacity:.5; }
 .auth { max-width:400px; margin:60px auto; padding:0 20px; }
