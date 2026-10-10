@@ -49,7 +49,7 @@ function endsIn(when) {
   if (h < 48) return `ends in ${h}h ${m}m`;
   return `ends ${new Date(when).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}`;
 }
-const SOURCE_NAMES = { govdeals: 'GovDeals', ironplanet: 'IronPlanet', rbauction: 'Ritchie Bros', ebay: 'eBay', craigslist: 'Craigslist', csv: 'Import', manual: 'Manual' };
+const SOURCE_NAMES = { govdeals: 'GovDeals', ironplanet: 'IronPlanet', rbauction: 'Ritchie Bros', machinio: 'Machinio', ebay: 'eBay', craigslist: 'Craigslist', csv: 'Import', manual: 'Manual' };
 const srcName = (s) => SOURCE_NAMES[s] || s;
 
 function dealCard(d, { broker = false, saved = null } = {}) {

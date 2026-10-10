@@ -58,6 +58,7 @@ change it there, change it in both jobs.
 | Want | Where to get it | Env vars |
 |---|---|---|
 | Ritchie Bros listings | already built — costs more Apify credit | `APIFY_SOURCES` = `govdeals,ironplanet,rbauction` |
+| Machinio dealer listings (asking prices) | cheap (~$1.50 per 1,000) | add `machinio` to `APIFY_SOURCES` |
 | eBay | developer.ebay.com (free, ~1 day approval) | `EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET` |
 | Real emails | resend.com (free up to 3,000/mo; verify your domain) | `RESEND_API_KEY`, `MAIL_FROM` |
 | Text messages | twilio.com (~$1.15/mo + per text; US needs a short business registration) | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` |
