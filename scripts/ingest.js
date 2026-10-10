@@ -67,6 +67,7 @@ async function ingestSold(productId, term, { force = false } = {}) {
 }
 
 async function ingestProduct(term, { sold = true } = {}) {
+  term = String(term || '').trim().toLowerCase();
   console.log(`\n=== ${term} ===`);
   const productId = await getOrCreateProduct(term);
 
