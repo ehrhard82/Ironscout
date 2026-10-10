@@ -86,6 +86,7 @@ function dealCard(d, { broker = false, saved = null } = {}) {
     <div class="save">${why}</div>
     <div class="small muted">Est. profit after fees ${money(d.estimated_margin)} · ${Math.round(d.discount_percent)}% below ${esc(d.compared_to)}</div>
     ${d.landed ? `<div class="landed small"><b>Delivered to ${esc(d.landed.to)}: ~${money(d.landed.delivered)}</b> <span class="muted">(${d.landed.premium_pct}% premium ${money(d.landed.premium)} + freight est. ${money(d.landed.freight)}, ${d.landed.miles.toLocaleString()} mi${d.landed.precision === 'rough' ? ', rough' : ''})</span>${d.landed.profit_after_delivery !== null ? `<br>Profit after delivery: <b style="color:${d.landed.profit_after_delivery >= 2500 ? 'var(--good)' : d.landed.profit_after_delivery > 0 ? 'var(--accent)' : 'var(--warn)'}">${d.landed.profit_after_delivery < 0 ? '−' : ''}${money(Math.abs(d.landed.profit_after_delivery))}</b></span>` : ''}</div>` : ''}
+    ${(d.buyer_landed && d.buyer_landed.length) ? `<div class="landed small"><b>Delivered to your buyers</b>${d.buyer_landed.map(b => `<br>${esc(b.company)} (${esc(b.to)}): <b>~${money(b.delivered)}</b> <span class="muted">freight est. ${money(b.freight)}, ${b.miles.toLocaleString()} mi${b.precision === 'rough' ? ', rough' : ''}</span>`).join('')}</div>` : ''}
     <div class="meta">${saleTag}<span>${esc(where)}</span>${d.year ? `<span>${d.year}</span>` : ''}${d.hours ? `<span>${Number(d.hours).toLocaleString()} hrs</span>` : ''}<span>${esc(srcName(d.source))}</span></div>
     <div class="actions">${actions}</div>
   </div>`;
