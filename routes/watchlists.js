@@ -29,7 +29,7 @@ function effective(user, w = {}) {
 
 /** SQL WHERE fragment (uses aliases d=deals, l=listings) for an effective filter set. */
 function matchSql(f, params) {
-  const where = [`d.commission_status <> 'passed'`, 'l.is_active'];
+  const where = [`d.commission_status <> 'passed'`, 'l.is_active', '(l.auction_ends IS NULL OR l.auction_ends > NOW())'];
   if (f.product_id) where.push(`d.product_id = $${params.push(f.product_id)}`);
   if (f.product_ids && f.product_ids.length) where.push(`d.product_id = ANY($${params.push(f.product_ids)})`);
   if (f.states && f.states.length) where.push(`l.state = ANY($${params.push(f.states)})`);

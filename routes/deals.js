@@ -14,7 +14,7 @@ const DEAL_SELECT = `
   FROM deals d
   JOIN listings l ON l.id = d.listing_id
   JOIN products p ON p.id = d.product_id
-  WHERE l.is_active`;
+  WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW())`;
 
 router.get('/', async (req, res, next) => {
   try {

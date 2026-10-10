@@ -44,8 +44,8 @@ router.get('/', requireAccess, async (req, res, next) => {
                   FROM deals d JOIN listings l ON l.id = d.listing_id JOIN products p ON p.id = d.product_id
                   LEFT JOIN saved_deals sd ON sd.deal_id = d.id AND sd.user_id = $1
                   WHERE ${matchSql(f, params)} ORDER BY d.deal_score DESC LIMIT 100`, params),
-      pool.query(`SELECT COUNT(*) FILTER (WHERE l.is_active)::int AS active_listings,
-                         COUNT(d.id) FILTER (WHERE l.is_active AND d.commission_status <> 'passed')::int AS all_deals,
+      pool.query(`SELECT COUNT(*) FILTER (WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()))::int AS active_listings,
+                         COUNT(d.id) FILTER (WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()) AND d.commission_status <> 'passed')::int AS all_deals,
                          MAX(l.last_seen) AS last_updated
                   FROM listings l LEFT JOIN deals d ON d.listing_id = l.id WHERE l.product_id = $1`, [product.id]),
       pool.query('SELECT 1 FROM watchlists WHERE user_id = $1 AND product_id = $2', [req.user.id, product.id]),

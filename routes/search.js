@@ -6,7 +6,7 @@ const pool = require('../lib/db');
 router.get('/', async (req, res, next) => {
   try {
     const { q, product, state, minPrice, maxPrice, source, sort = 'score', limit = 100 } = req.query;
-    const where = ['l.is_active'];
+    const where = ['l.is_active', '(l.auction_ends IS NULL OR l.auction_ends > NOW())'];
     const params = [];
     const add = (sql, v) => { params.push(v); where.push(sql.replace('?', `$${params.length}`)); };
 

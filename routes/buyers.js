@@ -39,7 +39,7 @@ async function list(where = 'b.active', params = []) {   // callers always pass 
                 'states', bw.states, 'min_year', bw.min_year, 'notes', bw.notes) ORDER BY p.name), '[]'::json)
        FROM buyer_wants bw JOIN products p ON p.id = bw.product_id WHERE bw.buyer_id = b.id AND bw.active) AS wants,
       (SELECT COUNT(*)::int FROM deals d JOIN listings l ON l.id = d.listing_id JOIN buyer_wants bw ON bw.buyer_id = b.id AND bw.active AND bw.product_id = d.product_id
-        WHERE l.is_active AND d.commission_status = 'open'
+        WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()) AND d.commission_status = 'open'
           AND (bw.max_price IS NULL OR l.price <= bw.max_price)
           AND (bw.states IS NULL OR cardinality(bw.states) = 0 OR l.state = ANY(bw.states))
           AND (bw.min_year IS NULL OR l.year IS NULL OR l.year >= bw.min_year)) AS open_matches
@@ -109,7 +109,7 @@ router.get('/:id/matches', mine, async (req, res, next) => {
     const r = await pool.query(`
       SELECT ${DEAL_COLS}, ${buyersSql(req.user)}
       FROM deals d JOIN listings l ON l.id = d.listing_id JOIN products p ON p.id = d.product_id
-      WHERE l.is_active AND d.commission_status <> 'passed'
+      WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()) AND d.commission_status <> 'passed'
         AND EXISTS (SELECT 1 FROM buyer_wants bw WHERE bw.buyer_id = $1 AND bw.active AND bw.product_id = d.product_id
           AND (bw.max_price IS NULL OR l.price <= bw.max_price)
           AND (bw.states IS NULL OR cardinality(bw.states) = 0 OR l.state = ANY(bw.states))
