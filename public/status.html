@@ -32,6 +32,7 @@
     <span>${m.listings} listings · ${m.sales} sales · <span class="${m.deals ? 'ok' : 'dim'}">${m.deals} deals</span>${m.market ? ` · mkt ${money(m.market)} (${m.basis})` : ' · <span class="dim">no market value yet</span>'}</span>
     <span class="dim small">${m.watchers ? `${m.watchers} watching · ` : ''}${m.last_fetch ? 'fetched ' + new Date(m.last_fetch).toLocaleString(undefined, { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never fetched'}</span>
     <span>${m.last_by_source.map(x => `<span class="src ${x.error ? 'bad' : ''}" title="${esc(x.error || '')}">${esc(x.source)} ${x.error ? '✗' : x.fetched}</span>`).join('')}</span></div>`).join('') || '<div class="dim">No machines yet.</div>';
+  if ((s.hidden_idle || []).length) $('machines').innerHTML += `<div class="dim" style="margin-top:10px">Hidden (old, nothing found): ${s.hidden_idle.map(esc).join(', ')}</div>`;
   $('errors').innerHTML = s.recent_errors.length ? s.recent_errors.map(e => `<div class="line bad"><span class="dim">${new Date(e.started_at).toLocaleString()}</span> <b>${esc(e.source)}</b> ${esc(e.product || '')}: ${esc(e.error)}</div>`).join('') : '<div class="ok">None.</div>';
 })().catch(e => { if (!['login', 'subscribe'].includes(e.message)) console.error(e); });
 </script></body></html>

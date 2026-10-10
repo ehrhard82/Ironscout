@@ -213,8 +213,16 @@ router.get('/status', async (req, res, next) => {
                          (SELECT COUNT(*)::int FROM deals d JOIN listings l ON l.id = d.listing_id WHERE l.is_active AND d.commission_status = 'open') AS deals,
                          (SELECT COUNT(*)::int FROM users) AS users, (SELECT COUNT(*)::int FROM buyers WHERE active) AS buyers`),
     ]);
-    res.json({ build: BUILD_STAMP(), budget, sources: require('../lib/sources').map(s => s.name), queue: ingestQueue.status(), totals: counts.rows[0],
-               machines: machines.rows, recent_errors: errors.rows });
+    const names = require('../lib/sources').map(s => s.name);
+    const day = 24 * 3600 * 1000;
+    const shown = [], idle = [];
+    for (const m of machines.rows) {
+      m.last_by_source = (m.last_by_source || []).filter(s => names.includes(s.source));   // only sources that are actually switched on
+      const old = !m.last_fetch || Date.now() - new Date(m.last_fetch) > day;
+      (m.listings + m.sales === 0 && old ? idle : shown).push(m);                           // old empty test machines
+    }
+    res.json({ build: BUILD_STAMP(), budget, sources: names, queue: ingestQueue.status(), totals: counts.rows[0],
+               machines: shown, hidden_idle: idle.map(m => m.name), recent_errors: errors.rows });
   } catch (e) { next(e); }
 });
 const BUILD_STAMP = () => { try { return require('child_process').execSync('git log -1 --format=%cd~%s --date=format:%m-%d\\ %H:%M', { cwd: require('path').join(__dirname, '..'), stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return 'unknown'; } };
