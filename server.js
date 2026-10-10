@@ -90,6 +90,9 @@ async function ensureSchema() {
     `UPDATE ingest_runs SET error = 'interrupted: server restarted before this fetch finished (redeploy or spin-down)', finished_at = NOW()
      WHERE finished_at IS NULL AND started_at < NOW() - INTERVAL '2 minutes'`);
   if (r.rowCount) console.log(`Marked ${r.rowCount} interrupted ingest run(s)`);
+  // Re-score everything shortly after each start, so improved filters take effect on deals
+  // already saved (database work only - no Apify cost).
+  setTimeout(() => require('./lib/pricing').recalculateAll().then(r => console.log(`Recalculated ${r.length} machine(s) after start`)).catch(e => console.error('startup recalc failed:', e.message)), 20000).unref();
   // Placeholder rows from before real sources were connected must not count as market data.
   if (process.env.SAMPLE_DATA !== 'true') {
     const d = await pool.query(`DELETE FROM listings WHERE title LIKE 'SAMPLE:%' OR source_id LIKE 'sample-%'`);
