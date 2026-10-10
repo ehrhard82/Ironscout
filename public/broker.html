@@ -93,9 +93,19 @@ async function loadBuyers() {
   const r = await api('/api/buyers');
   $('buyers').innerHTML = r.buyers.length ? r.buyers.map(b => `<div class="buyer" id="buyer-${b.id}">
       <div class="row" style="justify-content:space-between"><h4>${esc(b.company)} ${b.status === 'prospect' ? '<span class="pill">prospect</span>' : ''}</h4>
-        <span class="small">${b.open_matches ? `<b style="color:var(--good)">${b.open_matches} open deal${b.open_matches === 1 ? '' : 's'} match</b>` : '<span class="muted">no matches yet</span>'}</span></div>
+        <span class="small"><a href="#" onclick="$('edit-${b.id}').hidden=!$('edit-${b.id}').hidden;return false">✎ Edit</a> · ${b.open_matches ? `<b style="color:var(--good)">${b.open_matches} open deal${b.open_matches === 1 ? '' : 's'} match</b>` : '<span class="muted">no matches yet</span>'}</span></div>
       <div class="small muted">${[b.contact_name, b.phone ? `<a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>` : '', b.email, [b.city, b.state].filter(Boolean).join(', '), b.deliver_state ? 'deliver to ' + [b.deliver_city, b.deliver_state].filter(Boolean).join(', ') : ''].filter(Boolean).map(x => x.startsWith('<a') ? x : esc(x)).join(' · ')}${b.owner_email ? ` · owner ${esc(b.owner_name || b.owner_email)}` : ''}</div>
       ${b.notes ? `<div class="small" style="margin-top:4px">${esc(b.notes)}</div>` : ''}
+      <div id="edit-${b.id}" hidden style="margin-top:8px"><div class="form">
+        <input id="e-company-${b.id}" placeholder="Company" class="wide" value="${esc(b.company)}">
+        <input id="e-contact-${b.id}" placeholder="Contact name" value="${esc(b.contact_name || '')}"><input id="e-phone-${b.id}" placeholder="Phone" type="tel" value="${esc(b.phone || '')}">
+        <input id="e-email-${b.id}" placeholder="Email" type="email" value="${esc(b.email || '')}">
+        <input id="e-city-${b.id}" placeholder="City" value="${esc(b.city || '')}"><input id="e-state-${b.id}" placeholder="State" maxlength="2" value="${esc(b.state || '')}">
+        <div class="wide muted small">Deliver-to (blank = their address)</div>
+        <input id="e-dcity-${b.id}" placeholder="Deliver-to city" value="${esc(b.deliver_city || '')}"><input id="e-dstate-${b.id}" placeholder="Deliver-to state" maxlength="2" value="${esc(b.deliver_state || '')}">
+        <input id="e-notes-${b.id}" placeholder="Notes" class="wide" value="${esc(b.notes || '')}">
+        <div class="wide row"><button class="primary" onclick="saveEdit(${b.id})">Save changes</button><a href="#" class="muted small" onclick="$('edit-${b.id}').hidden=true;return false">cancel</a></div>
+      </div></div>
       <div style="margin-top:8px">${b.wants.map(w => `<div class="want small"><span class="pill">${esc(w.product)}</span>${w.max_price ? ` under ${money(w.max_price)}` : ''}${w.states && w.states.length ? ` · ${w.states.join(', ')}` : ' · anywhere'}${w.min_year ? ` · ${w.min_year}+` : ''}${w.deliver_state ? ` · deliver to ${esc([w.deliver_city, w.deliver_state].filter(Boolean).join(', '))}` : ''}${w.notes ? ` · ${esc(w.notes)}` : ''} <a href="#" class="muted" onclick="delWant(${w.id});return false">remove</a></div>`).join('') || '<div class="small muted">No wants yet.</div>'}</div>
       <details style="margin-top:8px"><summary class="small">+ add a want</summary>
         <div class="form" style="margin-top:8px">
@@ -125,6 +135,12 @@ $('b-save').onclick = async () => {
 async function addWant(id) {
   try { await api(`/api/buyers/${id}/wants`, { method: 'POST', body: { product: $(`aw-product-${id}`).value, max_price: $(`aw-max-${id}`).value, states: $(`aw-states-${id}`).value, min_year: $(`aw-year-${id}`).value, deliver_city: $(`aw-dcity-${id}`).value, deliver_state: $(`aw-dstate-${id}`).value } });
     await Promise.all([loadBuyers(), reloadDeals()]); } catch (e) { alert(e.message); }
+}
+async function saveEdit(id) {
+  const v = (k) => $(`e-${k}-${id}`).value.trim();
+  if (!v('company')) return alert('Company name is required');
+  try { await patchBuyer(id, { company: v('company'), contact_name: v('contact'), phone: v('phone'), email: v('email'), city: v('city'), state: v('state'), deliver_city: v('dcity'), deliver_state: v('dstate'), notes: v('notes') }); }
+  catch (e) { alert(e.message); }
 }
 async function delWant(id) { await api(`/api/buyers/wants/${id}`, { method: 'DELETE' }); await Promise.all([loadBuyers(), reloadDeals()]); }
 async function patchBuyer(id, body) { await api(`/api/buyers/${id}`, { method: 'PATCH', body }); await Promise.all([loadBuyers(), reloadDeals()]); }

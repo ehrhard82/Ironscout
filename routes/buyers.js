@@ -79,13 +79,13 @@ router.patch('/:id', mine, async (req, res, next) => {
     const b = req.body || {};
     const r = await pool.query(
       `UPDATE buyers SET company = COALESCE($2, company), contact_name = COALESCE($3, contact_name), phone = COALESCE($4, phone),
-         email = COALESCE($5, email), city = COALESCE($6, city), state = COALESCE($7, state), notes = COALESCE($8, notes),
+         email = COALESCE($5, email), city = COALESCE($6, city), state = CASE WHEN $7 = '-' THEN NULL ELSE COALESCE($7, state) END, notes = COALESCE($8, notes),
          status = COALESCE($9, status), active = COALESCE($10, active),
-         deliver_city = COALESCE($11, deliver_city), deliver_state = COALESCE($12, deliver_state), updated_at = NOW()
+         deliver_city = COALESCE($11, deliver_city), deliver_state = CASE WHEN $12 = '-' THEN NULL ELSE COALESCE($12, deliver_state) END, updated_at = NOW()
        WHERE id = $1 RETURNING id`,
       [req.params.id, b.company || null, b.contact_name ?? null, b.phone ?? null, b.email ?? null, b.city ?? null,
-       b.state ? STATE(b.state) : null, b.notes ?? null, b.status || null, typeof b.active === 'boolean' ? b.active : null,
-       b.deliver_city ?? null, b.deliver_state ? STATE(b.deliver_state) : null]);
+       b.state === '' ? '-' : b.state ? STATE(b.state) : null, b.notes ?? null, b.status || null, typeof b.active === 'boolean' ? b.active : null,
+       b.deliver_city ?? null, b.deliver_state === '' ? '-' : b.deliver_state ? STATE(b.deliver_state) : null]);
     if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
     res.json({ buyer: (await list('b.id = $1 AND b.owner_user_id = $2', [req.params.id, req.user.id]))[0] });
   } catch (e) { next(e); }
