@@ -51,7 +51,7 @@ async function ingestSold(productId, term, { force = false } = {}) {
     let error = null, note = null;
     try {
       const rows = await src.fetchSold(term, progress);
-      counts.fetched = rows.length; note = rows.note || null;
+      counts.fetched = rows.length; counts.returned = rows.returned || rows.length; note = rows.note || null;
       for (const r of rows) {
         try { const result = await upsertSale(productId, r); if (result in counts) counts[result]++; }
         catch (e) { note += `; save error: ${e.message.slice(0, 120)}`; }
@@ -59,8 +59,8 @@ async function ingestSold(productId, term, { force = false } = {}) {
     } catch (e) {
       error = friendlyError(e);
     }
-    await pool.query(`UPDATE ingest_runs SET fetched=$1, inserted=$2, updated=$3, error=$4, note=$5, finished_at=NOW() WHERE id=$6`,
-      [counts.fetched, counts.inserted, counts.updated, error, note, runId]).catch(() => {});
+    await pool.query(`UPDATE ingest_runs SET fetched=$1, inserted=$2, updated=$3, error=$4, note=$5, returned=$7, finished_at=NOW() WHERE id=$6`,
+      [counts.fetched, counts.inserted, counts.updated, error, note, runId, counts.returned || 0]).catch(() => {});
     out[src.name] = counts;
   }
   return out;
@@ -80,7 +80,7 @@ async function ingestProduct(term, { sold = true } = {}) {
     let error = null, note = null;
     try {
       const rows = await src.fetch(term, progress);
-      counts.fetched = rows.length;
+      counts.fetched = rows.length; counts.returned = rows.returned || rows.length;
       note = rows.note || `source returned ${rows.length} rows`;
       await progress(`${note}; saving…`);
       for (const r of rows) {
@@ -96,8 +96,8 @@ async function ingestProduct(term, { sold = true } = {}) {
       console.log(`  [${src.name}] ERROR: ${error}`);
     }
     await pool.query(
-      `UPDATE ingest_runs SET fetched=$1, inserted=$2, updated=$3, error=$4, note=$5, finished_at=NOW() WHERE id=$6`,
-      [counts.fetched, counts.inserted, counts.updated, error, note, runId]).catch(e => console.error('could not record run:', e.message));
+      `UPDATE ingest_runs SET fetched=$1, inserted=$2, updated=$3, error=$4, note=$5, returned=$7, finished_at=NOW() WHERE id=$6`,
+      [counts.fetched, counts.inserted, counts.updated, error, note, runId, counts.returned || 0]).catch(e => console.error('could not record run:', e.message));
   }
 
   if (sold) await ingestSold(productId, term);

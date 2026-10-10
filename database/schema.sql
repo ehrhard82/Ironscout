@@ -169,6 +169,7 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
 );
 
 ALTER TABLE ingest_runs ADD COLUMN IF NOT EXISTS note TEXT;
+ALTER TABLE ingest_runs ADD COLUMN IF NOT EXISTS returned INTEGER DEFAULT 0;   -- items the scraper billed us for (fetched = ones we kept)
 ALTER TABLE market_stats ADD COLUMN IF NOT EXISTS basis VARCHAR(10) DEFAULT 'asking';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS yard_city VARCHAR(100);   -- where the user takes delivery (landed cost)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS yard_state VARCHAR(2);   -- 'sold' when built from completed sales
