@@ -111,6 +111,39 @@ CREATE TABLE IF NOT EXISTS deals (
   notes             TEXT
 );
 
+-- The broker team's buyers: who wants what. Deals are matched to wants automatically.
+-- status: customer (someone we know) | prospect (from a public business list, not yet contacted)
+CREATE TABLE IF NOT EXISTS buyers (
+  id            SERIAL PRIMARY KEY,
+  company       VARCHAR(200) NOT NULL,
+  contact_name  VARCHAR(200),
+  phone         VARCHAR(40),
+  email         VARCHAR(255),
+  city          VARCHAR(100),
+  state         VARCHAR(2),
+  notes         TEXT,
+  status        VARCHAR(20) DEFAULT 'customer',   -- customer | prospect
+  source        VARCHAR(40) DEFAULT 'manual',     -- manual | fmcsa | rrc | import
+  owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,   -- salesperson who owns the relationship
+  active        BOOLEAN DEFAULT TRUE,
+  created_at    TIMESTAMP DEFAULT NOW(),
+  updated_at    TIMESTAMP DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS buyer_wants (
+  id          SERIAL PRIMARY KEY,
+  buyer_id    INTEGER NOT NULL REFERENCES buyers(id) ON DELETE CASCADE,
+  product_id  INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  max_price   NUMERIC(12,2),
+  states      TEXT[],                              -- empty = anywhere
+  min_year    INTEGER,
+  notes       TEXT,
+  active      BOOLEAN DEFAULT TRUE,
+  created_at  TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_buyer_wants_product ON buyer_wants(product_id) WHERE active;
+ALTER TABLE deals ADD COLUMN IF NOT EXISTS buyer_id INTEGER REFERENCES buyers(id) ON DELETE SET NULL;  -- who it was claimed for
+ALTER TABLE deals ALTER COLUMN compared_to TYPE VARCHAR(160);
+
 -- Audit log of what the broker did with each deal
 CREATE TABLE IF NOT EXISTS broker_interactions (
   id         SERIAL PRIMARY KEY,

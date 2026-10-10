@@ -12,9 +12,9 @@ const RATE = () => Number(process.env.COMMISSION_PERCENTAGE || 10);
 async function setStatus(dealId, status, extra = {}, notes = '') {
   const r = await pool.query(
     `UPDATE deals SET commission_status=$1, sale_price=COALESCE($2, sale_price),
-       commission_earned=COALESCE($3, commission_earned), notes=COALESCE($4, notes)
+       commission_earned=COALESCE($3, commission_earned), notes=COALESCE($4, notes), buyer_id=COALESCE($6, buyer_id)
      WHERE id=$5 RETURNING *`,
-    [status, extra.sale_price ?? null, extra.commission ?? null, notes || null, dealId]);
+    [status, extra.sale_price ?? null, extra.commission ?? null, notes || null, dealId, extra.buyer_id ?? null]);
   if (!r.rows.length) return null;
   await pool.query(
     'INSERT INTO broker_interactions (deal_id, broker_id, action, notes) VALUES ($1,$2,$3,$4)',
@@ -48,7 +48,7 @@ router.get('/dashboard', async (req, res, next) => {
 
 router.post('/deals/:id/claim', async (req, res, next) => {
   try {
-    const d = await setStatus(req.params.id, 'claimed', {}, req.body?.notes);
+    const d = await setStatus(req.params.id, 'claimed', { buyer_id: req.body?.buyer_id ? Number(req.body.buyer_id) : null }, req.body?.notes);
     d ? res.json(d) : res.status(404).json({ error: 'Deal not found' });
   } catch (e) { next(e); }
 });

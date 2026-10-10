@@ -29,7 +29,7 @@ function renderHeader(user, active) {
     ['/', 'Deals'],
     ['/account.html', 'Settings'],
   ];
-  if (user && (user.role === 'admin' || user.role === 'broker')) nav.splice(1, 0, ['/?view=broker', 'Broker board']);
+  if (user && (user.role === 'admin' || user.role === 'broker')) nav.splice(1, 0, ['/broker.html', 'Broker board']);
   if (user && user.role === 'admin') nav.push(['/admin.html', 'Admin']);
   return `<h1><a href="/">Iron<span>Scout</span></a></h1>
     <nav>${nav.map(([h, t]) => `<a href="${h}" class="${active === h ? 'on' : ''}">${t}</a>`).join('')}</nav>
@@ -61,16 +61,20 @@ function dealCard(d, { broker = false, saved = null } = {}) {
     ? `<span class="tag ${urgent ? 'hot' : ''}">Auction${d.auction_ends ? ' · ' + endsIn(d.auction_ends) : ''}</span>`
     : `<span class="tag">Buy now / offer</span>`;
   const verify = /verify/i.test(d.compared_to || '');
+  const buyers = Array.isArray(d.buyers) ? d.buyers : [];
+  const buyerLine = buyers.length ? `<div class="buyers">👤 <b>${buyers.length} buyer${buyers.length === 1 ? '' : 's'} want${buyers.length === 1 ? 's' : ''} this:</b> ${buyers.slice(0, 3).map(b =>
+      `${esc(b.company)}${b.contact ? ` (${esc(b.contact)})` : ''}${b.phone ? ` <a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>` : ''}${b.status === 'prospect' ? ' <span class="muted small">prospect</span>' : ''}`).join(' · ')}${buyers.length > 3 ? ` <span class="muted">+${buyers.length - 3} more</span>` : ''}</div>` : '';
   const why = `${money(d.discount_percent / 100 * d.market_price)} under what ${/sold/.test(d.compared_to || '') ? 'similar ones sold for' : 'similar ones are listed at'}`;
   let actions = '';
   if (broker) {
-    if (d.commission_status === 'open') actions = `<button onclick="brokerAct(${d.id},'claim')">Claim</button><button onclick="brokerAct(${d.id},'pass')">Pass</button>`;
+    if (d.commission_status === 'open') actions = `<button class="primary" onclick="brokerClaim(${d.id})">Claim${buyers.length ? ' for buyer' : ''}</button><button onclick="brokerAct(${d.id},'pass')">Pass</button>`;
     else if (d.commission_status === 'claimed') actions = `<button onclick="brokerSold(${d.id})">Mark sold</button><button onclick="brokerAct(${d.id},'pass')">Pass</button>`;
     else if (d.commission_status === 'sold') actions = `<button disabled>Sold</button>`;
   } else {
     actions = saved ? `<button onclick="unsaveDeal(${d.id})">Saved ✓</button>` : `<button onclick="saveDeal(${d.id})">Save</button>`;
     if (d.url) actions += `<a href="${esc(d.url)}" target="_blank" rel="noopener" style="flex:1"><button class="primary" style="width:100%">View listing</button></a>`;
   }
+  if (broker && d.url) actions += `<a href="${esc(d.url)}" target="_blank" rel="noopener" style="flex:1"><button style="width:100%">View</button></a>`;
   return `<div class="card status-${d.commission_status || 'open'} ${verify ? 'verify' : ''}" id="deal-${d.id}">
     ${d.image_url ? `<a class="photo" href="${esc(d.url || '#')}" target="_blank" rel="noopener"><img src="${esc(d.image_url)}" alt="" loading="lazy" onerror="this.parentNode.remove()"></a>` : ''}
     <div class="top">
@@ -78,9 +82,34 @@ function dealCard(d, { broker = false, saved = null } = {}) {
       <div class="score">${d.deal_score}<small>score</small></div>
     </div>
     <div class="price">${money(d.price)}<span class="mkt">${money(d.market_price)}</span></div>
+    ${buyerLine}
     <div class="save">${why}</div>
     <div class="small muted">Est. profit after fees ${money(d.estimated_margin)} · ${Math.round(d.discount_percent)}% below ${esc(d.compared_to)}</div>
     <div class="meta">${saleTag}<span>${esc(where)}</span>${d.year ? `<span>${d.year}</span>` : ''}${d.hours ? `<span>${Number(d.hours).toLocaleString()} hrs</span>` : ''}<span>${esc(srcName(d.source))}</span></div>
     <div class="actions">${actions}</div>
   </div>`;
+}
+
+// ---- broker actions (used by broker.html; the page defines reloadDeals()) ----
+async function brokerAct(id, action, body) {
+  try { await api(`/api/broker/deals/${id}/${action}`, { method: 'POST', body: body || {} }); if (typeof reloadDeals === 'function') reloadDeals(); }
+  catch (e) { alert(e.message); }
+}
+async function brokerClaim(id) {
+  const card = document.getElementById('deal-' + id);
+  const names = card ? [...card.querySelectorAll('.buyers b')] : [];
+  let buyer_id = null;
+  if (window.lastDeals) {
+    const d = window.lastDeals.find(x => x.id === id);
+    if (d && d.buyers && d.buyers.length) {
+      const pick = prompt('Claim for which buyer? Type a number:\n' + d.buyers.map((b, i) => `${i + 1}. ${b.company}${b.contact ? ' (' + b.contact + ')' : ''}`).join('\n') + '\n0. no specific buyer', '1');
+      if (pick === null) return;
+      const n = Number(pick); if (n >= 1 && n <= d.buyers.length) buyer_id = d.buyers[n - 1].id;
+    }
+  }
+  return brokerAct(id, 'claim', { buyer_id });
+}
+async function brokerSold(id) {
+  const p = prompt('Sale price ($)?'); if (!p) return;
+  return brokerAct(id, 'sold', { salePrice: Number(String(p).replace(/[^0-9.]/g, '')) });
 }

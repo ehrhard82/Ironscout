@@ -108,7 +108,7 @@ router.get('/deals', async (req, res, next) => {
     const params = [req.user.id];
     const f = { ...effective(u), product_ids: wl.rows.map(r => r.product_id) };
     const r = await pool.query(`
-      SELECT ${DEAL_COLS}, (sd.deal_id IS NOT NULL) AS saved
+      SELECT ${DEAL_COLS}, (sd.deal_id IS NOT NULL) AS saved${require('../lib/buyers').isStaff(req.user) ? ', ' + require('../lib/buyers').BUYERS_SQL : ''}
       FROM deals d JOIN listings l ON l.id = d.listing_id JOIN products p ON p.id = d.product_id
       LEFT JOIN saved_deals sd ON sd.deal_id = d.id AND sd.user_id = $1
       WHERE ${matchSql(f, params)} ORDER BY d.deal_score DESC LIMIT 300`, params);

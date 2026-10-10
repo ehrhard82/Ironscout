@@ -1,0 +1,114 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Broker board · IronScout</title><link rel="stylesheet" href="/app.css">
+<style>
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:18px; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .kpi .v { font-size:22px; font-weight:700; } .kpi .l { color:var(--muted); font-size:13px; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .tabs button.on { background:var(--accent); color:#1a1200; border-color:var(--accent); font-weight:600; }
+  .buyer { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:10px; }
+  .buyer h4 { margin:0 0 4px; font-size:16px; } .buyer .want { margin:6px 0; }
+  .form { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; }
+  .form input, .form select { width:100%; min-width:0; }
+  .form .wide { grid-column:1/-1; }
+  details summary { cursor:pointer; color:var(--accent); }
+</style></head><body>
+<header id="hdr"></header>
+<main>
+  <div class="section">
+    <h2>Deals to work</h2>
+    <div class="kpis" id="kpis"></div>
+    <div class="tabs">
+      <button class="on" data-status="open" onclick="setStatus('open')">Open</button>
+      <button data-status="claimed" onclick="setStatus('claimed')">Claimed</button>
+      <button data-status="sold" onclick="setStatus('sold')">Sold</button>
+      <label style="margin-left:auto" class="small muted"><input type="checkbox" id="hasbuyer" onchange="reloadDeals()"> only deals a buyer is waiting for</label>
+    </div>
+    <div id="deals" class="grid"></div>
+  </div>
+
+  <div class="section">
+    <h2>Buyers</h2>
+    <p class="muted small">Who your team is buying for. Add a buyer and what they want; every matching deal will say so on the card and in the alert email, and the daily email puts those first.</p>
+    <div class="card" style="margin-bottom:14px">
+      <details id="add-details"><summary><b>+ Add a buyer</b></summary>
+      <div class="form" style="margin-top:10px">
+        <input id="b-company" placeholder="Company *" class="wide">
+        <input id="b-contact" placeholder="Contact name"><input id="b-phone" placeholder="Phone" type="tel">
+        <input id="b-email" placeholder="Email" type="email">
+        <input id="b-city" placeholder="City"><input id="b-state" placeholder="State (TX)" maxlength="2">
+        <select id="b-status"><option value="customer">Customer (we know them)</option><option value="prospect">Prospect (not contacted yet)</option></select>
+        <input id="b-notes" placeholder="Notes (what they run, how they pay, who to call first…)" class="wide">
+        <div class="wide muted small" style="margin-top:4px">What they want (you can add more later)</div>
+        <input id="w-product" placeholder="Machine (e.g. wheel loader) *" list="products"><datalist id="products"></datalist>
+        <input id="w-max" placeholder="Max price $" type="number" step="1000">
+        <input id="w-states" placeholder="States (TX, NM) — blank = anywhere">
+        <input id="w-year" placeholder="Oldest year" type="number">
+        <div class="wide row"><button class="primary" id="b-save">Save buyer</button><span id="b-msg" class="err small"></span></div>
+      </div></details>
+    </div>
+    <div id="buyers"></div>
+  </div>
+</main>
+<script src="/app.js"></script>
+<script>
+let user, status = 'open', products = [];
+async function load() {
+  user = await requireUser();
+  if (!['admin', 'broker'].includes(user.role)) { location.href = '/'; return; }
+  $('hdr').innerHTML = renderHeader(user, '/broker.html'); wireLogout();
+  const [dash, prods] = await Promise.all([api('/api/broker/dashboard'), api('/api/products')]);
+  products = prods.products;
+  $('products').innerHTML = products.map(p => `<option value="${esc(p.name)}">`).join('');
+  $('kpis').innerHTML = `
+    <div class="kpi"><div class="v">${dash.open_deals}</div><div class="l">Open deals</div></div>
+    <div class="kpi"><div class="v">${money(dash.open_margin_potential)}</div><div class="l">Margin on the table</div></div>
+    <div class="kpi"><div class="v">${dash.claimed}</div><div class="l">Claimed</div></div>
+    <div class="kpi"><div class="v">${dash.sold}</div><div class="l">Sold</div></div>
+    <div class="kpi"><div class="v">${money(dash.commission_earned)}</div><div class="l">Commission earned (${dash.commission_rate}%)</div></div>`;
+  await Promise.all([reloadDeals(), loadBuyers()]);
+}
+function setStatus(s) { status = s; document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.status === s)); reloadDeals(); }
+async function reloadDeals() {
+  const r = await api(`/api/deals?status=${status}&sort=buyers&limit=200${$('hasbuyer').checked ? '&hasBuyer=1' : ''}`);
+  window.lastDeals = r.deals;
+  $('deals').innerHTML = r.deals.length ? r.deals.map(d => dealCard(d, { broker: true })).join('')
+    : `<div class="empty">Nothing ${status} right now${$('hasbuyer').checked ? ' that a buyer is waiting for' : ''}.</div>`;
+}
+async function loadBuyers() {
+  const r = await api('/api/buyers');
+  $('buyers').innerHTML = r.buyers.length ? r.buyers.map(b => `<div class="buyer" id="buyer-${b.id}">
+      <div class="row" style="justify-content:space-between"><h4>${esc(b.company)} ${b.status === 'prospect' ? '<span class="pill">prospect</span>' : ''}</h4>
+        <span class="small">${b.open_matches ? `<b style="color:var(--good)">${b.open_matches} open deal${b.open_matches === 1 ? '' : 's'} match</b>` : '<span class="muted">no matches yet</span>'}</span></div>
+      <div class="small muted">${[b.contact_name, b.phone ? `<a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>` : '', b.email, [b.city, b.state].filter(Boolean).join(', ')].filter(Boolean).map(x => x.startsWith('<a') ? x : esc(x)).join(' · ')}${b.owner_email ? ` · owner ${esc(b.owner_name || b.owner_email)}` : ''}</div>
+      ${b.notes ? `<div class="small" style="margin-top:4px">${esc(b.notes)}</div>` : ''}
+      <div style="margin-top:8px">${b.wants.map(w => `<div class="want small"><span class="pill">${esc(w.product)}</span>${w.max_price ? ` under ${money(w.max_price)}` : ''}${w.states && w.states.length ? ` · ${w.states.join(', ')}` : ' · anywhere'}${w.min_year ? ` · ${w.min_year}+` : ''}${w.notes ? ` · ${esc(w.notes)}` : ''} <a href="#" class="muted" onclick="delWant(${w.id});return false">remove</a></div>`).join('') || '<div class="small muted">No wants yet.</div>'}</div>
+      <details style="margin-top:8px"><summary class="small">+ add a want</summary>
+        <div class="form" style="margin-top:8px">
+          <input id="aw-product-${b.id}" placeholder="Machine *" list="products"><input id="aw-max-${b.id}" placeholder="Max price $" type="number" step="1000">
+          <input id="aw-states-${b.id}" placeholder="States (TX, NM)"><input id="aw-year-${b.id}" placeholder="Oldest year" type="number">
+          <div class="wide row"><button onclick="addWant(${b.id})">Add</button>
+            <button onclick="patchBuyer(${b.id},{status:'${b.status === 'prospect' ? 'customer' : 'prospect'}'})">Mark as ${b.status === 'prospect' ? 'customer' : 'prospect'}</button>
+            <button class="danger" onclick="if(confirm('Retire ${esc(b.company).replace(/'/g, '')}?'))patchBuyer(${b.id},{active:false})">Retire</button></div>
+        </div></details>
+    </div>`).join('') : '<div class="empty">No buyers yet. Add the people your team is buying for and every matching deal will light up.</div>';
+}
+$('b-save').onclick = async () => {
+  $('b-msg').textContent = '';
+  try {
+    const wants = $('w-product').value.trim() ? [{ product: $('w-product').value, max_price: $('w-max').value, states: $('w-states').value, min_year: $('w-year').value }] : [];
+    await api('/api/buyers', { method: 'POST', body: { company: $('b-company').value, contact_name: $('b-contact').value, phone: $('b-phone').value, email: $('b-email').value,
+      city: $('b-city').value, state: $('b-state').value, status: $('b-status').value, notes: $('b-notes').value, wants } });
+    ['b-company','b-contact','b-phone','b-email','b-city','b-state','b-notes','w-product','w-max','w-states','w-year'].forEach(id => $(id).value = '');
+    $('add-details').open = false;
+    await Promise.all([loadBuyers(), reloadDeals()]);
+  } catch (e) { $('b-msg').textContent = e.message; }
+};
+async function addWant(id) {
+  try { await api(`/api/buyers/${id}/wants`, { method: 'POST', body: { product: $(`aw-product-${id}`).value, max_price: $(`aw-max-${id}`).value, states: $(`aw-states-${id}`).value, min_year: $(`aw-year-${id}`).value } });
+    await Promise.all([loadBuyers(), reloadDeals()]); } catch (e) { alert(e.message); }
+}
+async function delWant(id) { await api(`/api/buyers/wants/${id}`, { method: 'DELETE' }); await Promise.all([loadBuyers(), reloadDeals()]); }
+async function patchBuyer(id, body) { await api(`/api/buyers/${id}`, { method: 'PATCH', body }); await Promise.all([loadBuyers(), reloadDeals()]); }
+load().catch(e => { if (!['login', 'subscribe'].includes(e.message)) console.error(e); });
+</script></body></html>

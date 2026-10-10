@@ -9,6 +9,7 @@ const router = require('express').Router();
 const pool = require('../lib/db');
 const { requireAccess } = require('../lib/auth');
 const { matchSql, effective, DEAL_COLS } = require('./watchlists');
+const { BUYERS_SQL, isStaff } = require('../lib/buyers');
 
 router.get('/', requireAccess, async (req, res, next) => {
   try {
@@ -38,7 +39,7 @@ router.get('/', requireAccess, async (req, res, next) => {
     const [market, deals, counts, watched, salesRows, salesCount] = await Promise.all([
       pool.query(`SELECT region_type, region, median_price, p25_price, p75_price, min_price, max_price, sample_size, basis
                   FROM market_stats WHERE product_id = $1 ORDER BY region_type, sample_size DESC`, [product.id]),
-      pool.query(`SELECT ${DEAL_COLS}, (sd.deal_id IS NOT NULL) AS saved
+      pool.query(`SELECT ${DEAL_COLS}, (sd.deal_id IS NOT NULL) AS saved${isStaff(req.user) ? ', ' + BUYERS_SQL : ''}
                   FROM deals d JOIN listings l ON l.id = d.listing_id JOIN products p ON p.id = d.product_id
                   LEFT JOIN saved_deals sd ON sd.deal_id = d.id AND sd.user_id = $1
                   WHERE ${matchSql(f, params)} ORDER BY d.deal_score DESC LIMIT 100`, params),

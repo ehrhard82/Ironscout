@@ -2,6 +2,7 @@
 // GET /api/deals/:id        one deal with full listing + market context
 const router = require('express').Router();
 const pool = require('../lib/db');
+const { BUYERS_SQL, BUYER_COUNT_SQL, isStaff } = require('../lib/buyers');
 
 const DEAL_SELECT = `
   SELECT d.id, d.deal_score, d.discount_percent, d.discount_amount, d.estimated_margin, d.market_price,
@@ -16,7 +17,8 @@ const DEAL_SELECT = `
 
 router.get('/', async (req, res, next) => {
   try {
-    const { product, state, states, minDiscount, minMargin, minPrice, maxPrice, minScore, status = 'open', sort = 'score', limit = 50 } = req.query;
+    const { product, state, states, minDiscount, minMargin, minPrice, maxPrice, minScore, status = 'open', sort = 'score', limit = 50, hasBuyer } = req.query;
+    const staff = isStaff(req.user);
     const where = [];
     const params = [];
     const add = (sql, v) => { params.push(v); where.push(sql.replace('?', `$${params.length}`)); };
@@ -30,6 +32,7 @@ router.get('/', async (req, res, next) => {
     if (minMargin) add('d.estimated_margin >= ?', Number(minMargin));
     if (minScore) add('d.deal_score >= ?', Number(minScore));
     if (status && status !== 'all') add('d.commission_status = ?', status);
+    if (staff && hasBuyer === '1') where.push(`${BUYER_COUNT_SQL} > 0`);
 
     const order = {
       score: 'd.deal_score DESC, d.discount_percent DESC',
@@ -38,10 +41,12 @@ router.get('/', async (req, res, next) => {
       margin: 'd.estimated_margin DESC',
       price_low: 'l.price ASC',
       newest: 'l.posted_date DESC NULLS LAST',
+      buyers: `${BUYER_COUNT_SQL} DESC, d.deal_score DESC`,
     }[sort] || 'd.deal_score DESC';
 
     params.push(Math.min(Number(limit) || 50, 500));
-    const sql = `${DEAL_SELECT} ${where.length ? 'AND ' + where.join(' AND ') : ''}
+    const select = staff ? DEAL_SELECT.replace('p.name AS product', `p.name AS product, d.buyer_id, ${BUYERS_SQL}`) : DEAL_SELECT;
+    const sql = `${select} ${where.length ? 'AND ' + where.join(' AND ') : ''}
                  ORDER BY ${order} LIMIT $${params.length}`;
     const r = await pool.query(sql, params);
     res.json({ count: r.rows.length, deals: r.rows });

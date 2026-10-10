@@ -23,7 +23,7 @@ settings. Users type a machine on the home page and see all of that on one scree
 | `/` Deals | everyone | Type a machine → market value, recent sales, deals. Typing a machine we don't track yet starts a fetch on the spot (2–5 min). |
 | `/mine.html` | everyone | Deals across all the machines on your watchlist. |
 | `/account.html` Settings | everyone | Machines to get alerts for, states, % and $ thresholds, email/text, how often. |
-| `/broker.html` Broker board | admin + broker | Claim / pass / mark sold on deals; tracks commission. |
+| `/broker.html` Broker board | admin + broker | Deals to work (claim / pass / mark sold, commission tracking) and the **buyer book**: add buyers and what they want; matching deals say "2 buyers want this" on the card and come first in alert emails. |
 | `/admin.html` | admin | Fetch a machine now, fetch sold prices, re-score, test the sources, see recent runs, manage users. |
 
 ## Daily routine (once the timers are set up, this is automatic)
