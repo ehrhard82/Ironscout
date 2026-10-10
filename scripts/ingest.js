@@ -18,6 +18,19 @@ function friendlyError(e) {
   return e.response ? `${e.response.status} ${JSON.stringify(e.response.data).slice(0, 300)}` : e.message;
 }
 
+/** For sources that ignore keywords, retire previously-saved listings/sales that aren't about this machine. */
+async function sweepMismatches(productId, sourceName, term) {
+  const { ACTORS, matchesQuery } = require('../lib/sources/apify');
+  if (!ACTORS[sourceName]?.filterByQuery) return;
+  const rows = await pool.query(`SELECT id, title FROM listings WHERE product_id = $1 AND source = $2 AND is_active`, [productId, sourceName]);
+  const bad = rows.rows.filter(r => !matchesQuery(r.title, term)).map(r => r.id);
+  if (bad.length) await pool.query(`UPDATE listings SET is_active = FALSE WHERE id = ANY($1)`, [bad]);
+  const sales = await pool.query(`SELECT id, title FROM sales WHERE product_id = $1 AND source = $2`, [productId, sourceName]);
+  const badSales = sales.rows.filter(r => !matchesQuery(r.title, term)).map(r => r.id);
+  if (badSales.length) await pool.query(`DELETE FROM sales WHERE id = ANY($1)`, [badSales]);
+  if (bad.length || badSales.length) console.log(`  [${sourceName}] retired ${bad.length} listings / ${badSales.length} sales not about "${term}"`);
+}
+
 const SOLD_EVERY_DAYS = Number(process.env.SOLD_REFRESH_DAYS || 30);
 
 /** Pull completed sales (hammer prices) for a product from every source that has them. */
@@ -76,6 +89,7 @@ async function ingestProduct(term, { sold = true } = {}) {
         } catch (e) { note += `; save error: ${e.message.slice(0, 120)}`; }
       }
       console.log(`  [${src.name}] fetched ${counts.fetched}, new ${counts.inserted}, refreshed ${counts.updated}`);
+      await sweepMismatches(productId, src.name, term);
     } catch (e) {
       error = friendlyError(e);
       console.log(`  [${src.name}] ERROR: ${error}`);
