@@ -42,6 +42,8 @@
         <input id="b-contact" placeholder="Contact name"><input id="b-phone" placeholder="Phone" type="tel">
         <input id="b-email" placeholder="Email" type="email">
         <input id="b-city" placeholder="City"><input id="b-state" placeholder="State (TX)" maxlength="2">
+        <div class="wide muted small" style="margin-top:4px">Where they want machines delivered (leave blank if it's their address above)</div>
+        <input id="b-dcity" placeholder="Deliver-to city"><input id="b-dstate" placeholder="Deliver-to state (GA)" maxlength="2">
         <select id="b-status"><option value="customer">Customer (we know them)</option><option value="prospect">Prospect (not contacted yet)</option></select>
         <input id="b-notes" placeholder="Notes (what they run, how they pay, who to call first…)" class="wide">
         <div class="wide muted small" style="margin-top:4px">What they want (you can add more later)</div>
@@ -92,13 +94,17 @@ async function loadBuyers() {
   $('buyers').innerHTML = r.buyers.length ? r.buyers.map(b => `<div class="buyer" id="buyer-${b.id}">
       <div class="row" style="justify-content:space-between"><h4>${esc(b.company)} ${b.status === 'prospect' ? '<span class="pill">prospect</span>' : ''}</h4>
         <span class="small">${b.open_matches ? `<b style="color:var(--good)">${b.open_matches} open deal${b.open_matches === 1 ? '' : 's'} match</b>` : '<span class="muted">no matches yet</span>'}</span></div>
-      <div class="small muted">${[b.contact_name, b.phone ? `<a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>` : '', b.email, [b.city, b.state].filter(Boolean).join(', ')].filter(Boolean).map(x => x.startsWith('<a') ? x : esc(x)).join(' · ')}${b.owner_email ? ` · owner ${esc(b.owner_name || b.owner_email)}` : ''}</div>
+      <div class="small muted">${[b.contact_name, b.phone ? `<a href="tel:${esc(b.phone)}">${esc(b.phone)}</a>` : '', b.email, [b.city, b.state].filter(Boolean).join(', '), b.deliver_state ? 'deliver to ' + [b.deliver_city, b.deliver_state].filter(Boolean).join(', ') : ''].filter(Boolean).map(x => x.startsWith('<a') ? x : esc(x)).join(' · ')}${b.owner_email ? ` · owner ${esc(b.owner_name || b.owner_email)}` : ''}</div>
       ${b.notes ? `<div class="small" style="margin-top:4px">${esc(b.notes)}</div>` : ''}
-      <div style="margin-top:8px">${b.wants.map(w => `<div class="want small"><span class="pill">${esc(w.product)}</span>${w.max_price ? ` under ${money(w.max_price)}` : ''}${w.states && w.states.length ? ` · ${w.states.join(', ')}` : ' · anywhere'}${w.min_year ? ` · ${w.min_year}+` : ''}${w.notes ? ` · ${esc(w.notes)}` : ''} <a href="#" class="muted" onclick="delWant(${w.id});return false">remove</a></div>`).join('') || '<div class="small muted">No wants yet.</div>'}</div>
+      <div style="margin-top:8px">${b.wants.map(w => `<div class="want small"><span class="pill">${esc(w.product)}</span>${w.max_price ? ` under ${money(w.max_price)}` : ''}${w.states && w.states.length ? ` · ${w.states.join(', ')}` : ' · anywhere'}${w.min_year ? ` · ${w.min_year}+` : ''}${w.deliver_state ? ` · deliver to ${esc([w.deliver_city, w.deliver_state].filter(Boolean).join(', '))}` : ''}${w.notes ? ` · ${esc(w.notes)}` : ''} <a href="#" class="muted" onclick="delWant(${w.id});return false">remove</a></div>`).join('') || '<div class="small muted">No wants yet.</div>'}</div>
       <details style="margin-top:8px"><summary class="small">+ add a want</summary>
         <div class="form" style="margin-top:8px">
           <input id="aw-product-${b.id}" placeholder="Machine *" list="products"><input id="aw-max-${b.id}" placeholder="Max price $" type="number" step="1000">
           <input id="aw-states-${b.id}" placeholder="States (TX, NM)"><input id="aw-year-${b.id}" placeholder="Oldest year" type="number">
+          <input id="aw-dcity-${b.id}" placeholder="Deliver-to city (if different)"><input id="aw-dstate-${b.id}" placeholder="Deliver-to state" maxlength="2">
+          <div class="wide muted small">Deliver-to for all of this buyer's machines:</div>
+          <input id="bd-city-${b.id}" placeholder="City" value="${esc(b.deliver_city || '')}"><input id="bd-state-${b.id}" placeholder="State" maxlength="2" value="${esc(b.deliver_state || '')}">
+          <div class="wide row"><button onclick="patchBuyer(${b.id},{deliver_city:$('bd-city-${b.id}').value,deliver_state:$('bd-state-${b.id}').value})">Save deliver-to</button></div>
           <div class="wide row"><button onclick="addWant(${b.id})">Add</button>
             <button onclick="patchBuyer(${b.id},{status:'${b.status === 'prospect' ? 'customer' : 'prospect'}'})">Mark as ${b.status === 'prospect' ? 'customer' : 'prospect'}</button>
             <button class="danger" onclick="if(confirm('Retire ${esc(b.company).replace(/'/g, '')}?'))patchBuyer(${b.id},{active:false})">Retire</button></div>
@@ -110,14 +116,14 @@ $('b-save').onclick = async () => {
   try {
     const wants = $('w-product').value.trim() ? [{ product: $('w-product').value, max_price: $('w-max').value, states: $('w-states').value, min_year: $('w-year').value }] : [];
     await api('/api/buyers', { method: 'POST', body: { company: $('b-company').value, contact_name: $('b-contact').value, phone: $('b-phone').value, email: $('b-email').value,
-      city: $('b-city').value, state: $('b-state').value, status: $('b-status').value, notes: $('b-notes').value, wants } });
-    ['b-company','b-contact','b-phone','b-email','b-city','b-state','b-notes','w-product','w-max','w-states','w-year'].forEach(id => $(id).value = '');
+      city: $('b-city').value, state: $('b-state').value, deliver_city: $('b-dcity').value, deliver_state: $('b-dstate').value, status: $('b-status').value, notes: $('b-notes').value, wants } });
+    ['b-company','b-contact','b-phone','b-email','b-city','b-state','b-dcity','b-dstate','b-notes','w-product','w-max','w-states','w-year'].forEach(id => $(id).value = '');
     $('add-details').open = false;
     await Promise.all([loadBuyers(), reloadDeals()]);
   } catch (e) { $('b-msg').textContent = e.message; }
 };
 async function addWant(id) {
-  try { await api(`/api/buyers/${id}/wants`, { method: 'POST', body: { product: $(`aw-product-${id}`).value, max_price: $(`aw-max-${id}`).value, states: $(`aw-states-${id}`).value, min_year: $(`aw-year-${id}`).value } });
+  try { await api(`/api/buyers/${id}/wants`, { method: 'POST', body: { product: $(`aw-product-${id}`).value, max_price: $(`aw-max-${id}`).value, states: $(`aw-states-${id}`).value, min_year: $(`aw-year-${id}`).value, deliver_city: $(`aw-dcity-${id}`).value, deliver_state: $(`aw-dstate-${id}`).value } });
     await Promise.all([loadBuyers(), reloadDeals()]); } catch (e) { alert(e.message); }
 }
 async function delWant(id) { await api(`/api/buyers/wants/${id}`, { method: 'DELETE' }); await Promise.all([loadBuyers(), reloadDeals()]); }

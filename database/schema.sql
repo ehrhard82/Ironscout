@@ -141,6 +141,11 @@ CREATE TABLE IF NOT EXISTS buyer_wants (
   created_at  TIMESTAMP DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_buyer_wants_product ON buyer_wants(product_id) WHERE active;
+-- Where the buyer wants machines delivered (may differ from their own address); a want can override it
+ALTER TABLE buyers      ADD COLUMN IF NOT EXISTS deliver_city  VARCHAR(100);
+ALTER TABLE buyers      ADD COLUMN IF NOT EXISTS deliver_state CHAR(2);
+ALTER TABLE buyer_wants ADD COLUMN IF NOT EXISTS deliver_city  VARCHAR(100);
+ALTER TABLE buyer_wants ADD COLUMN IF NOT EXISTS deliver_state CHAR(2);
 ALTER TABLE deals ADD COLUMN IF NOT EXISTS buyer_id INTEGER REFERENCES buyers(id) ON DELETE SET NULL;  -- who it was claimed for
 ALTER TABLE deals ALTER COLUMN compared_to TYPE VARCHAR(160);
 
