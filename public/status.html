@@ -1,0 +1,37 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Status · IronScout</title><link rel="stylesheet" href="/app.css">
+<style>
+  body { font-size:14px; } main { max-width:720px; margin:0 auto; padding:12px; }
+  .line { padding:6px 0; border-bottom:1px solid var(--line); display:flex; gap:8px; flex-wrap:wrap; align-items:baseline; }
+  .line b { min-width:120px; } .ok { color:var(--good); } .bad { color:var(--warn); } .dim { color:var(--muted); }
+  .src { display:inline-block; padding:1px 7px; border-radius:999px; background:#232835; font-size:12px; margin-right:4px; }
+  .src.bad { background:#3a1f1f; }
+</style></head><body>
+<header id="hdr"></header>
+<main>
+  <div id="top" class="dim">Loading…</div>
+  <h3 style="margin:14px 0 6px">Machines</h3>
+  <div id="machines"></div>
+  <h3 style="margin:14px 0 6px">Errors (last 2 days)</h3>
+  <div id="errors" class="small"></div>
+</main>
+<script src="/app.js"></script>
+<script>
+(async () => {
+  const user = await requireUser();
+  if (user.role !== 'admin') { location.href = '/'; return; }
+  $('hdr').innerHTML = renderHeader(user, '/status.html'); wireLogout();
+  const s = await api('/api/admin/status');
+  const b = s.budget;
+  $('top').innerHTML = `<div class="line"><b>Build</b> ${esc(s.build)}</div>
+    <div class="line"><b>Apify today</b> ${b ? `${b.used} of ${b.cap} ${b.left <= 0 ? '<span class="bad">— CAP REACHED</span>' : ''}` : '?'}</div>
+    <div class="line"><b>Sources</b> ${s.sources.join(', ')}</div>
+    <div class="line"><b>Running now</b> ${s.queue.running ? esc(s.queue.running) : '<span class="dim">nothing</span>'}${s.queue.queued.length ? ` · queued: ${s.queue.queued.map(esc).join(', ')}` : ''}</div>
+    <div class="line"><b>Totals</b> ${s.totals.listings} listings · ${s.totals.sales} sales · ${s.totals.deals} open deals · ${s.totals.users} users · ${s.totals.buyers} buyers</div>`;
+  $('machines').innerHTML = s.machines.map(m => `<div class="line"><b>${esc(m.name)}</b>
+    <span>${m.listings} listings · ${m.sales} sales · <span class="${m.deals ? 'ok' : 'dim'}">${m.deals} deals</span>${m.market ? ` · mkt ${money(m.market)} (${m.basis})` : ' · <span class="dim">no market value yet</span>'}</span>
+    <span class="dim small">${m.watchers ? `${m.watchers} watching · ` : ''}${m.last_fetch ? 'fetched ' + new Date(m.last_fetch).toLocaleString(undefined, { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never fetched'}</span>
+    <span>${m.last_by_source.map(x => `<span class="src ${x.error ? 'bad' : ''}" title="${esc(x.error || '')}">${esc(x.source)} ${x.error ? '✗' : x.fetched}</span>`).join('')}</span></div>`).join('') || '<div class="dim">No machines yet.</div>';
+  $('errors').innerHTML = s.recent_errors.length ? s.recent_errors.map(e => `<div class="line bad"><span class="dim">${new Date(e.started_at).toLocaleString()}</span> <b>${esc(e.source)}</b> ${esc(e.product || '')}: ${esc(e.error)}</div>`).join('') : '<div class="ok">None.</div>';
+})().catch(e => { if (!['login', 'subscribe'].includes(e.message)) console.error(e); });
+</script></body></html>

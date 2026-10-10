@@ -190,6 +190,35 @@ router.post('/import-sales', express.text({ type: '*/*', limit: '5mb' }), async 
   } catch (e) { next(e); }
 });
 
+// GET /api/admin/status   one-screen health summary (what a screenshot needs to show)
+router.get('/status', async (req, res, next) => {
+  try {
+    const [budget, machines, errors, counts] = await Promise.all([
+      require('../lib/sources/apify').budgetLeft().catch(() => null),
+      pool.query(`
+        SELECT p.id, p.name,
+          (SELECT COUNT(*)::int FROM listings l WHERE l.product_id = p.id AND l.is_active) AS listings,
+          (SELECT COUNT(*)::int FROM sales s WHERE s.product_id = p.id) AS sales,
+          (SELECT COUNT(*)::int FROM deals d JOIN listings l ON l.id = d.listing_id WHERE d.product_id = p.id AND l.is_active AND d.commission_status = 'open') AS deals,
+          (SELECT COUNT(*)::int FROM watchlists w WHERE w.product_id = p.id) AS watchers,
+          (SELECT MAX(started_at) FROM ingest_runs r WHERE r.product_id = p.id) AS last_fetch,
+          (SELECT COALESCE(json_agg(json_build_object('source', x.source, 'fetched', x.fetched, 'error', x.error) ORDER BY x.source), '[]'::json)
+             FROM (SELECT DISTINCT ON (source) source, fetched, error FROM ingest_runs r WHERE r.product_id = p.id AND source NOT LIKE '%:sold' ORDER BY source, started_at DESC) x) AS last_by_source,
+          (SELECT median_price FROM market_stats m WHERE m.product_id = p.id AND m.region_type = 'country') AS market,
+          (SELECT basis FROM market_stats m WHERE m.product_id = p.id AND m.region_type = 'country') AS basis
+        FROM products p ORDER BY p.name`),
+      pool.query(`SELECT source, error, started_at, (SELECT name FROM products WHERE id = product_id) AS product
+                  FROM ingest_runs WHERE error IS NOT NULL AND started_at > NOW() - INTERVAL '2 days' ORDER BY started_at DESC LIMIT 10`),
+      pool.query(`SELECT (SELECT COUNT(*)::int FROM listings WHERE is_active) AS listings, (SELECT COUNT(*)::int FROM sales) AS sales,
+                         (SELECT COUNT(*)::int FROM deals d JOIN listings l ON l.id = d.listing_id WHERE l.is_active AND d.commission_status = 'open') AS deals,
+                         (SELECT COUNT(*)::int FROM users) AS users, (SELECT COUNT(*)::int FROM buyers WHERE active) AS buyers`),
+    ]);
+    res.json({ build: BUILD_STAMP(), budget, sources: require('../lib/sources').map(s => s.name), queue: ingestQueue.status(), totals: counts.rows[0],
+               machines: machines.rows, recent_errors: errors.rows });
+  } catch (e) { next(e); }
+});
+const BUILD_STAMP = () => { try { return require('child_process').execSync('git log -1 --format=%cd~%s --date=format:%m-%d\\ %H:%M', { cwd: require('path').join(__dirname, '..'), stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return 'unknown'; } };
+
 // POST /api/admin/alerts/run   send any due digests now (what the scheduler does every 15 min)
 router.post('/alerts/run', async (req, res, next) => {
   try { res.json(await sendDigests()); } catch (e) { next(e); }

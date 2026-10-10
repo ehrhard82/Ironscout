@@ -30,7 +30,7 @@ function renderHeader(user, active) {
     ['/account.html', 'Settings'],
   ];
   if (user && (user.role === 'admin' || user.role === 'broker')) nav.splice(1, 0, ['/broker.html', 'Broker board']);
-  if (user && user.role === 'admin') nav.push(['/admin.html', 'Admin']);
+  if (user && user.role === 'admin') nav.push(['/admin.html', 'Admin'], ['/status.html', 'Status']);
   return `<h1><a href="/">Iron<span>Scout</span></a></h1>
     <nav>${nav.map(([h, t]) => `<a href="${h}" class="${active === h ? 'on' : ''}">${t}</a>`).join('')}</nav>
     <div class="stats" id="hdr-stats">${user ? `${esc(user.email)} · <a href="#" id="logout" style="color:var(--muted)">log out</a>` : ''}</div>`;
