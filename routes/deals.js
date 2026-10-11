@@ -50,7 +50,7 @@ router.get('/', async (req, res, next) => {
     const sql = `${select} ${where.length ? 'AND ' + where.join(' AND ') : ''}
                  ORDER BY ${order} LIMIT $${params.length}`;
     const r = await pool.query(sql, params);
-    const u = (await pool.query('SELECT yard_city, yard_state FROM users WHERE id = $1', [req.user.id])).rows[0] || {};
+    const u = (await pool.query('SELECT yard_city, yard_state, commission_percent FROM users WHERE id = $1', [req.user.id])).rows[0] || {};
     res.json({ count: r.rows.length, deals: attachLanded(r.rows, u) });
   } catch (e) { next(e); }
 });

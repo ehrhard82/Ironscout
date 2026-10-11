@@ -23,7 +23,7 @@ router.get('/', requireLogin, async (req, res, next) => {
     const r = await pool.query(
       `SELECT name, email, phone, alert_channel AS channel, alert_frequency AS frequency, alert_states AS states,
               alert_min_discount AS min_discount, alert_min_margin AS min_margin, alert_max_price AS max_price,
-              alert_min_year AS min_year, last_digest_at, yard_city, yard_state
+              alert_min_year AS min_year, last_digest_at, yard_city, yard_state, commission_percent::float AS commission_percent
        FROM users WHERE id = $1`, [req.user.id]);
     res.json({ ...r.rows[0], channels: CHANNELS, frequencies: FREQS,
                sms_available: Boolean(process.env.TWILIO_ACCOUNT_SID) });
@@ -54,10 +54,11 @@ router.put('/', requireLogin, async (req, res, next) => {
          alert_max_price = CASE WHEN $11::boolean THEN $12 ELSE alert_max_price END,
          alert_min_year = CASE WHEN $13::boolean THEN $14 ELSE alert_min_year END,
          yard_city = CASE WHEN $15::boolean THEN $16 ELSE yard_city END,
-         yard_state = CASE WHEN $15::boolean THEN $17 ELSE yard_state END
+         yard_state = CASE WHEN $15::boolean THEN $17 ELSE yard_state END,
+         commission_percent = CASE WHEN $18::boolean THEN $19::numeric ELSE commission_percent END
        WHERE id = $1
        RETURNING name, phone, alert_channel AS channel, alert_frequency AS frequency, alert_states AS states,
-                 alert_min_discount AS min_discount, alert_min_margin AS min_margin, alert_max_price AS max_price, alert_min_year AS min_year, yard_city, yard_state`,
+                 alert_min_discount AS min_discount, alert_min_margin AS min_margin, alert_max_price AS max_price, alert_min_year AS min_year, yard_city, yard_state, commission_percent::float AS commission_percent`,
       [req.user.id, b.name === undefined ? null : String(b.name).slice(0, 255),
        phone !== undefined, phone ?? null,
        channel, frequency,
@@ -68,7 +69,8 @@ router.put('/', requireLogin, async (req, res, next) => {
        b.min_year !== undefined, b.min_year ? Number(b.min_year) : null,
        b.yard_city !== undefined || b.yard_state !== undefined,
        b.yard_city ? String(b.yard_city).trim().slice(0, 100) : null,
-       b.yard_state ? String(b.yard_state).trim().toUpperCase().slice(0, 2) : null]);
+       b.yard_state ? String(b.yard_state).trim().toUpperCase().slice(0, 2) : null,
+       b.commission_percent !== undefined, b.commission_percent === '' || b.commission_percent === null ? null : Math.max(0, Math.min(100, Number(b.commission_percent) || 0))]);
     res.json(r.rows[0]);
   } catch (e) { next(e); }
 });
