@@ -84,10 +84,12 @@ function showTab(t) {
 }
 function setStatus(s) { status = s; document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.status === s)); reloadDeals(); }
 async function reloadDeals() {
+  const y = window.scrollY;
   const r = await api(`/api/deals?status=${status}&sort=buyers&limit=200${$('hasbuyer').checked ? '&hasBuyer=1' : ''}`);
   window.lastDeals = r.deals;
   $('deals').innerHTML = r.deals.length ? r.deals.map(d => dealCard(d, { broker: true })).join('')
     : `<div class="empty">Nothing ${status} right now${$('hasbuyer').checked ? ' that a buyer is waiting for' : ''}.</div>`;
+  window.scrollTo(0, y);                 // stay where you were after claim/pass
 }
 async function loadBuyers() {
   const r = await api('/api/buyers');

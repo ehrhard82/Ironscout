@@ -57,10 +57,12 @@ async function feed() {
   } catch (e) { $('list').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
-async function go(q) {
+async function go(q, opts = {}) {
+  clearTimeout(pollTimer);               // a pending check for some other machine must never replace this one
+  const keep = opts.keep && current === q, y = window.scrollY;
   $('q').value = q; current = q;
   history.replaceState(null, '', '/?q=' + encodeURIComponent(q));
-  $('result').innerHTML = ''; $('list').innerHTML = '<div class="empty">Looking…</div>';
+  if (!keep) { $('result').innerHTML = ''; $('list').innerHTML = '<div class="empty">Looking…</div>'; }
   const r = await api('/api/lookup?q=' + encodeURIComponent(q) + (showAll ? '&all=1' : ''));
   if (!r.tracked) {                       // brand-new machine: start tracking + fetching it right away
     $('list').innerHTML = `<div class="empty">New machine — starting a search for "${esc(q)}"…</div>`;
@@ -70,7 +72,7 @@ async function go(q) {
   if (r.fetching || (r.active_listings === 0 && !r.last_updated)) {
     $('result').innerHTML = '';
     $('list').innerHTML = `<div class="empty"><div class="spin"></div>Searching the auction sites for "${esc(r.product.name)}"… this usually takes 2–5 minutes. You can leave this page open; it refreshes itself.</div>`;
-    clearTimeout(pollTimer); pollTimer = setTimeout(() => go(q), 20000);
+    clearTimeout(pollTimer); pollTimer = setTimeout(() => { if (current === q) go(q); }, 20000);
     return;
   }
   const m = r.market;
@@ -101,6 +103,7 @@ async function go(q) {
     </div>`;
   savedIds = new Set(r.deals.filter(d => d.saved).map(d => d.id));
   lastResult = r; $('sort').value = sortBy; $('kind').value = kindFilter; renderDeals();
+  if (keep) window.scrollTo(0, y);       // quiet refresh: stay where you were
 }
 let lastResult = null, sortBy = 'score', kindFilter = 'all';
 function renderDeals() {
@@ -117,15 +120,15 @@ function renderDeals() {
   $('list').innerHTML = deals.length ? deals.map(d => dealCard(d, { saved: d.saved })).join('')
     : `<div class="empty">Nothing under market right now${r.filters_applied ? ' that clears your settings' : ''}${kindFilter !== 'all' ? ` (${kindFilter === 'auction' ? 'auctions' : 'buy-now listings'} only)` : ''}.<br>${r.watched ? 'You\'ll be alerted when one shows up.' : `<button class="primary" style="margin-top:12px" onclick="watch(${r.product.id})">★ Watch this machine and alert me</button>`}</div>`;
 }
-async function watch(id) { await api('/api/watchlists', { method: 'POST', body: { product_id: id } }); go(current); }
+async function watch(id) { await api('/api/watchlists', { method: 'POST', body: { product_id: id } }); go(current, { keep: true }); }
 let pollTimer = null;
 async function requestIt(term) {
   const r = await api('/api/watchlists/request', { method: 'POST', body: { term } });
   $('list').innerHTML = `<div class="empty"><div class="spin"></div>${esc(r.message)}<br><span class="small muted">You can leave this page open; it refreshes itself.</span></div>`;
-  clearTimeout(pollTimer); pollTimer = setTimeout(() => go(term), 20000);
+  clearTimeout(pollTimer); pollTimer = setTimeout(() => { if (current === term) go(term); }, 20000);
 }
-async function saveDeal(id) { await api('/api/watchlists/saved/' + id, { method: 'POST' }); go(current); }
-async function unsaveDeal(id) { await api('/api/watchlists/saved/' + id, { method: 'DELETE' }); go(current); }
+async function saveDeal(id) { await api('/api/watchlists/saved/' + id, { method: 'POST' }); go(current, { keep: true }); }
+async function unsaveDeal(id) { await api('/api/watchlists/saved/' + id, { method: 'DELETE' }); go(current, { keep: true }); }
 $('f').onsubmit = (e) => { e.preventDefault(); if ($('q').value.trim()) go($('q').value.trim()); };
 init().catch(e => { if (!['login', 'subscribe'].includes(e.message)) console.error(e); });
 </script></body></html>
