@@ -50,7 +50,7 @@ router.get('/', requireAccess, async (req, res, next) => {
                   FROM listings l LEFT JOIN deals d ON d.listing_id = l.id WHERE l.product_id = $1`, [product.id]),
       pool.query('SELECT 1 FROM watchlists WHERE user_id = $1 AND product_id = $2', [req.user.id, product.id]),
       pool.query(`SELECT title, price, year, hours, city, state, url, source, sold_at FROM sales
-                  WHERE product_id = $1 ORDER BY sold_at DESC NULLS LAST, first_seen DESC LIMIT 12`, [product.id]),
+                  WHERE product_id = $1 ORDER BY sold_at DESC NULLS LAST, first_seen DESC LIMIT 60`, [product.id]),
       pool.query(`SELECT COUNT(*)::int AS n, COUNT(*) FILTER (WHERE sold_at IS NULL OR sold_at > NOW() - ($2 || ' days')::interval)::int AS recent FROM sales WHERE product_id = $1`, [product.id, Number(process.env.SOLD_WINDOW_DAYS || 120)]),
     ]);
     const us = market.rows.find(r => r.region_type === 'country');
