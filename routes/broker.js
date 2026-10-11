@@ -68,8 +68,12 @@ router.get('/dashboard', async (req, res, next) => {
         FROM broker_interactions bi JOIN deals d ON d.id=bi.deal_id JOIN listings l ON l.id=d.listing_id
         ORDER BY bi.created_at DESC LIMIT 20`),
     ]);
-    res.json({ broker_id: BROKER(), commission_rate: RATE(), ...totals.rows[0],
-               by_product: byProduct.rows, recent_activity: recent.rows });
+    const out = { broker_id: BROKER(), commission_rate: RATE(), ...totals.rows[0], by_product: byProduct.rows, recent_activity: recent.rows };
+    if (req.user.role === 'agent') {      // agents don't see the owner's earnings
+      out.commission_earned = null; out.commission_rate = null; out.open_margin_potential = null;
+      out.recent_activity = out.recent_activity.map(r => ({ ...r, notes: null }));
+    }
+    res.json(out);
   } catch (e) { next(e); }
 });
 

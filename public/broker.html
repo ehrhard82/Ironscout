@@ -70,10 +70,10 @@ async function load() {
   $('products').innerHTML = products.map(p => `<option value="${esc(p.name)}">`).join('');
   $('kpis').innerHTML = `
     <div class="kpi"><div class="v">${dash.open_deals}</div><div class="l">Open deals</div></div>
-    <div class="kpi"><div class="v">${money(dash.open_margin_potential)}</div><div class="l">Margin on the table</div></div>
+    ${dash.open_margin_potential === null ? '' : `<div class="kpi"><div class="v">${money(dash.open_margin_potential)}</div><div class="l">Margin on the table</div></div>`}
     <div class="kpi"><div class="v">${dash.claimed}</div><div class="l">Claimed</div></div>
     <div class="kpi"><div class="v">${dash.sold}</div><div class="l">Sold</div></div>
-    <div class="kpi"><div class="v">${money(dash.commission_earned)}</div><div class="l">Commission earned (${dash.commission_rate}%)</div></div>`;
+    ${dash.commission_earned === null ? '' : `<div class="kpi"><div class="v">${money(dash.commission_earned)}</div><div class="l">Commission earned (${dash.commission_rate}%)</div></div>`}`;
   await Promise.all([reloadDeals(), loadBuyers(), loadBlocked()]);
   if (!window.CAN_HIDE) $('blocked-box').style.display = 'none';
   if (location.hash === '#buyers') showTab('buyers');
