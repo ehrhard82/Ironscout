@@ -225,6 +225,14 @@ router.get('/status', async (req, res, next) => {
                machines: shown, hidden_idle: idle.map(m => m.name), recent_errors: errors.rows });
   } catch (e) { next(e); }
 });
+// DELETE /api/admin/machines/:id   remove a machine and everything fetched for it (listings, sales, deals, watches, buyer wants)
+router.delete('/machines/:id', async (req, res, next) => {
+  try {
+    const r = await pool.query('DELETE FROM products WHERE id = $1 RETURNING name', [Number(req.params.id)]);
+    if (!r.rowCount) return res.status(404).json({ error: 'not found' });
+    res.json({ deleted: r.rows[0].name });
+  } catch (e) { next(e); }
+});
 const BUILD_STAMP = () => { try { return require('child_process').execSync('git log -1 --format=%cd~%s --date=format:%m-%d\\ %H:%M', { cwd: require('path').join(__dirname, '..'), stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return 'unknown'; } };
 
 // POST /api/admin/alerts/run   send any due digests now (what the scheduler does every 15 min)
