@@ -205,7 +205,8 @@ router.get('/status', async (req, res, next) => {
           (SELECT COALESCE(json_agg(json_build_object('source', x.source, 'fetched', x.fetched, 'error', x.error) ORDER BY x.source), '[]'::json)
              FROM (SELECT DISTINCT ON (source) source, fetched, error FROM ingest_runs r WHERE r.product_id = p.id AND source NOT LIKE '%:sold' ORDER BY source, started_at DESC) x) AS last_by_source,
           (SELECT median_price FROM market_stats m WHERE m.product_id = p.id AND m.region_type = 'country') AS market,
-          (SELECT basis FROM market_stats m WHERE m.product_id = p.id AND m.region_type = 'country') AS basis
+          (SELECT basis FROM market_stats m WHERE m.product_id = p.id AND m.region_type = 'country') AS basis,
+          (SELECT sample_size FROM market_stats m WHERE m.product_id = p.id AND m.region_type = 'country') AS sample_size
         FROM products p ORDER BY p.name`),
       pool.query(`SELECT source, error, started_at, (SELECT name FROM products WHERE id = product_id) AS product
                   FROM ingest_runs WHERE error IS NOT NULL AND started_at > NOW() - INTERVAL '2 days' ORDER BY started_at DESC LIMIT 10`),

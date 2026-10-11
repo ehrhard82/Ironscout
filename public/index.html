@@ -82,7 +82,7 @@ async function go(q, opts = {}) {
   const states = m.by_state.slice(0, 6).map(s => `${esc(s.region)} ${money(s.median_price)} <span class="muted">(${s.sample_size})</span>`).join(' &nbsp;·&nbsp; ');
   $('result').innerHTML = `
     <div class="market">
-      <div class="stat"><div class="v">${m.us_median ? money(m.us_median) : '—'}</div><div class="l">${m.basis === 'sold' ? `Market value — from ${m.sample_size} actual sales` : `Market value — asking prices (${m.sample_size})`}</div></div>
+      <div class="stat"><div class="v">${m.us_median ? money(m.us_median) : '—'}</div><div class="l">${m.basis === 'sold' ? `Market value — from ${m.sample_size} actual sales` : `Market value — asking prices (${m.sample_size})`}${m.sample_size < 8 ? ' · <b style="color:var(--accent)">thin data, treat as a ballpark</b>' : ''}</div></div>
       <div class="stat"><div class="v">${m.us_p25 && m.us_p75 ? money(m.us_p25) + '–' + money(m.us_p75) : '—'}</div><div class="l">Typical range (25th–75th)</div></div>
       <div class="stat"><div class="v">${r.active_listings}</div><div class="l">Active listings tracked</div></div>
       <div class="stat"><div class="v">${r.all_deals}</div><div class="l">Priced under market</div></div>
