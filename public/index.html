@@ -86,7 +86,7 @@ async function go(q, opts = {}) {
     </div>
     <div class="heading"><div class="small muted">${m.basis === 'sold'
       ? `Market value is the middle price of ${m.sample_size} ${esc(r.product.name)}s that actually sold in the last few months. A deal is a live listing priced well under that, after auction fees.`
-      : `Market value is the middle asking price of ${m.sample_size} live listings — we don't have enough completed sales for this machine yet. It gets more accurate as sales come in.`}</div></div>
+      : `Market value is the middle asking price of ${m.sample_size} live listings. We've seen ${r.sales_count} completed sale${r.sales_count === 1 ? '' : 's'}, but only ${r.sales_recent} from the last ${r.sold_window_days} days — we need ${r.sold_min} recent ones to price from sold prices. It gets more accurate as new sales come in.`}</div></div>
     ${r.recent_sales && r.recent_sales.length ? `<div class="heading"><details style="width:100%"><summary class="small" style="cursor:pointer">Recent sales we've seen (${r.sales_count}) — what these actually sold for</summary>
       <div class="small" style="margin-top:8px">${r.recent_sales.map(x => `<div style="padding:5px 0;border-bottom:1px solid var(--line)"><b>${money(x.price)}</b> · ${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title)} <span class="muted">· ${[x.city, x.state].filter(Boolean).join(', ')}${x.hours ? ` · ${Number(x.hours).toLocaleString()} hrs` : ''}${x.sold_at ? ` · ${new Date(x.sold_at).toLocaleDateString()}` : ''} · ${esc(x.source)}</span></div>`).join('')}</div></details></div>` : ''}
     ${states ? `<div class="heading"><div class="small muted">By state: ${states}</div></div>` : ''}
