@@ -69,7 +69,7 @@ function card(l) {
     <div class="row2"><div class="price">${money(l.price)}</div>${l.is_deal ? '<span class="tag deal">deal</span>' : ''}</div>
     ${vsHtml(l)}
     <div class="meta">${tag}<span>${esc(where)}</span>${l.year ? `<span>${l.year}</span>` : ''}${l.hours ? `<span>${Number(l.hours).toLocaleString()} hrs</span>` : ''}<span>${esc(srcName(l.source))}</span></div>
-    ${l.url ? `<div class="actions"><a href="${esc(l.url)}" target="_blank" rel="noopener" style="flex:1"><button class="primary" style="width:100%">View listing</button></a></div>` : ''}
+    ${l.url ? `<div class="actions"><a href="${esc(l.url)}" target="_blank" rel="noopener" style="flex:1"><button class="primary" style="width:100%">View listing</button></a>${blockBtn(l.id)}</div>` : ''}
   </div>`;
 }
 

@@ -30,6 +30,7 @@
       <label style="margin-left:auto" class="small muted"><input type="checkbox" id="hasbuyer" onchange="reloadDeals()"> only deals a buyer is waiting for</label>
     </div>
     <div id="deals" class="grid"></div>
+    <details id="blocked-box" style="margin-top:18px"><summary class="small muted">Hidden listings (marked "Not this machine")</summary><div id="blocked" class="small" style="margin-top:8px"></div></details>
   </div>
 
   <div class="section" id="pane-buyers" style="display:none">
@@ -73,8 +74,15 @@ async function load() {
     <div class="kpi"><div class="v">${dash.claimed}</div><div class="l">Claimed</div></div>
     <div class="kpi"><div class="v">${dash.sold}</div><div class="l">Sold</div></div>
     <div class="kpi"><div class="v">${money(dash.commission_earned)}</div><div class="l">Commission earned (${dash.commission_rate}%)</div></div>`;
-  await Promise.all([reloadDeals(), loadBuyers()]);
+  await Promise.all([reloadDeals(), loadBuyers(), loadBlocked()]);
   if (location.hash === '#buyers') showTab('buyers');
+}
+async function loadBlocked() {
+  const rows = await api('/api/broker/blocked');
+  $('blocked').innerHTML = rows.length ? rows.map(r => `<div class="row" style="padding:4px 0"><span>${esc(r.title)} <span class="muted">(${esc(r.product || '')}, ${money(r.price)})</span></span><button style="margin-left:auto" onclick="restoreListing('${r.id}')">Restore</button></div>`).join('') : '<span class="muted">None.</span>';
+}
+async function restoreListing(id) {
+  try { await api(`/api/broker/listings/${id}/block`, { method: 'DELETE' }); await loadBlocked(); } catch (e) { alert(e.message); }
 }
 function showTab(t) {
   $('pane-deals').style.display = t === 'deals' ? '' : 'none';

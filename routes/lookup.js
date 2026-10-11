@@ -47,7 +47,7 @@ router.get('/', requireAccess, async (req, res, next) => {
       pool.query(`SELECT COUNT(*) FILTER (WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()))::int AS active_listings,
                          COUNT(d.id) FILTER (WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()) AND d.commission_status <> 'passed')::int AS all_deals,
                          MAX(l.last_seen) AS last_updated
-                  FROM listings l LEFT JOIN deals d ON d.listing_id = l.id WHERE l.product_id = $1`, [product.id]),
+                  FROM listings l LEFT JOIN deals d ON d.listing_id = l.id WHERE l.product_id = $1 AND l.id NOT IN (SELECT listing_id FROM listing_blocks)`, [product.id]),
       pool.query('SELECT 1 FROM watchlists WHERE user_id = $1 AND product_id = $2', [req.user.id, product.id]),
       pool.query(`SELECT title, price, year, hours, city, state, url, source, sold_at FROM sales
                   WHERE product_id = $1 ORDER BY sold_at DESC NULLS LAST, first_seen DESC LIMIT 60`, [product.id]),

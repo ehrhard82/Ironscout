@@ -56,7 +56,7 @@ router.get('/machine', async (req, res, next) => {
              l.auction_ends, l.posted_date, d.market_price::float AS deal_market, d.deal_score
       FROM listings l LEFT JOIN deals d ON d.listing_id = l.id AND d.commission_status <> 'passed'
       WHERE l.product_id = $1 AND l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW())
-        AND NOT (${JUNK_SQL}) AND NOT (${ATTACH_SQL})
+        AND NOT (${JUNK_SQL}) AND NOT (${ATTACH_SQL}) AND l.id NOT IN (SELECT listing_id FROM listing_blocks)
       ORDER BY l.price ASC LIMIT 600`, [pid]);
     const listings = r.rows.map(l => {
       const ref = l.deal_market || normal;

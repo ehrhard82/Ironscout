@@ -22,6 +22,32 @@ async function setStatus(dealId, status, extra = {}, notes = '') {
   return r.rows[0];
 }
 
+// "Not this machine": hide a wrong match everywhere, re-score that machine now.
+router.post('/listings/:id/block', async (req, res, next) => {
+  try {
+    const id = req.params.id;
+    const l = (await pool.query('SELECT product_id FROM listings WHERE id = $1', [id])).rows[0];
+    if (!l) return res.status(404).json({ error: 'not found' });
+    await pool.query('INSERT INTO listing_blocks (listing_id, blocked_by) VALUES ($1,$2) ON CONFLICT DO NOTHING', [id, req.user.id]);
+    require('../lib/pricing').recalculateProduct(l.product_id).catch(e => console.error('recalc after block failed:', e.message));
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+router.delete('/listings/:id/block', async (req, res, next) => {
+  try {
+    const l = (await pool.query('DELETE FROM listing_blocks WHERE listing_id = $1 RETURNING listing_id', [req.params.id]));
+    const p = (await pool.query('SELECT product_id FROM listings WHERE id = $1', [req.params.id])).rows[0];
+    if (p) require('../lib/pricing').recalculateProduct(p.product_id).catch(() => {});
+    res.json({ ok: true, restored: l.rowCount });
+  } catch (e) { next(e); }
+});
+router.get('/blocked', async (req, res, next) => {
+  try {
+    res.json((await pool.query(`SELECT l.id, l.title, l.price::float AS price, l.url, (SELECT name FROM products WHERE id = l.product_id) AS product
+                                FROM listing_blocks b JOIN listings l ON l.id = b.listing_id ORDER BY b.blocked_at DESC LIMIT 100`)).rows);
+  } catch (e) { next(e); }
+});
+
 router.get('/dashboard', async (req, res, next) => {
   try {
     const [totals, byProduct, recent] = await Promise.all([

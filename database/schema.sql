@@ -258,6 +258,13 @@ CREATE TABLE IF NOT EXISTS product_requests (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Listings staff marked "not this machine": excluded from market values, deals and lists
+CREATE TABLE IF NOT EXISTS listing_blocks (
+  listing_id UUID PRIMARY KEY REFERENCES listings(id) ON DELETE CASCADE,
+  blocked_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  blocked_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Subscribers' own saved deals (independent of the broker claim workflow)
 CREATE TABLE IF NOT EXISTS saved_deals (
   user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

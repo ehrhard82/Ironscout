@@ -21,7 +21,9 @@ async function api(path, opts = {}) {
 
 /** Returns the current user or redirects to login. */
 async function requireUser() {
-  try { return await api('/api/auth/me'); } catch (e) { throw e; }
+  const u = await api('/api/auth/me');
+  window.IS_STAFF = !!u && (u.role === 'admin' || u.role === 'broker');
+  return u;
 }
 
 function renderHeader(user, active) {
@@ -75,6 +77,7 @@ function dealCard(d, { broker = false, saved = null } = {}) {
     if (d.url) actions += `<a href="${esc(d.url)}" target="_blank" rel="noopener" style="flex:1"><button class="primary" style="width:100%">View listing</button></a>`;
   }
   if (broker && d.url) actions += `<a href="${esc(d.url)}" target="_blank" rel="noopener" style="flex:1"><button style="width:100%">View</button></a>`;
+  actions += blockBtn(d.listing_id);
   return `<div class="card status-${d.commission_status || 'open'} ${verify ? 'verify' : ''}" id="deal-${d.id}">
     ${d.image_url ? `<a class="photo" href="${esc(d.url || '#')}" target="_blank" rel="noopener"><img src="${esc(d.image_url)}" alt="" loading="lazy" onerror="this.parentNode.remove()"></a>` : ''}
     <div class="top">
@@ -91,6 +94,16 @@ function dealCard(d, { broker = false, saved = null } = {}) {
     <div class="actions">${actions}</div>
   </div>`;
 }
+
+// Staff only: hide a wrong match ("dental chair" under swivel) everywhere.
+async function blockListing(listingId, btn) {
+  if (!confirm('Hide this listing from IronScout? It will stop counting toward market values and deals.')) return;
+  try {
+    await api(`/api/broker/listings/${listingId}/block`, { method: 'POST', body: {} });
+    const card = btn && btn.closest('.card'); if (card) card.remove();
+  } catch (e) { alert(e.message); }
+}
+const blockBtn = (listingId) => window.IS_STAFF && listingId ? `<button onclick="blockListing('${listingId}', this)" title="Wrong kind of machine">Not this machine</button>` : '';
 
 // ---- broker actions (used by broker.html; the page defines reloadDeals()) ----
 async function brokerAct(id, action, body) {
