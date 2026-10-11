@@ -1,0 +1,96 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>All listings · IronScout</title><link rel="stylesheet" href="/app.css">
+<style>
+  .head { max-width:1200px; margin:18px auto 0; padding:0 20px; }
+  .head h2 { margin:0 0 4px; font-size:22px; text-transform:capitalize; }
+  .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:12px 0 4px; }
+  .controls label { color:var(--muted); font-size:14px; display:flex; gap:6px; align-items:center; }
+  .vs { font-weight:700; margin:2px 0; }
+  .vs.under { color:var(--good); } .vs.near { color:var(--muted); } .vs.above { color:var(--accent); }
+  .tag.deal { background:#16301f; color:#8be3a5; }
+  .li img { width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:8px; margin-bottom:8px; background:#0b0d12; }
+  .li .row2 { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  .more { text-align:center; margin:16px 0 30px; }
+</style></head><body>
+<header id="hdr"></header>
+<div class="head">
+  <h2 id="title">Loading…</h2>
+  <div id="normal" class="small muted"></div>
+  <div class="controls">
+    <label>Sort <select id="sort">
+      <option value="vs">cheapest vs normal first</option>
+      <option value="vs_high">most above normal first</option>
+      <option value="price_low">price: low to high</option>
+      <option value="price_high">price: high to low</option>
+      <option value="year">newest year</option>
+      <option value="ending">ending soonest</option>
+    </select></label>
+    <label>Show <select id="kind"><option value="all">everything</option><option value="auction">auctions only</option><option value="listing">buy-now only</option></select></label>
+    <label>State <select id="state"><option value="">all</option></select></label>
+    <span class="small muted" id="count"></span>
+  </div>
+</div>
+<main><div id="list" class="grid"><div class="empty">Loading…</div></div><div class="more" id="more"></div></main>
+<script src="/app.js"></script>
+<script>
+let data = null, shown = 60;
+const name = new URLSearchParams(location.search).get('m') || '';
+
+async function load() {
+  const user = await requireUser();
+  if (!user.has_access) { location.href = '/account.html?subscribe=1'; return; }
+  $('hdr').innerHTML = renderHeader(user, '/'); wireLogout();
+  if (!name) { $('list').innerHTML = '<div class="empty">Pick a machine on the <a href="/">home page</a> first.</div>'; return; }
+  data = await api('/api/search/machine?name=' + encodeURIComponent(name));
+  $('title').textContent = data.machine + ' — every live listing';
+  const m = data.market;
+  $('normal').innerHTML = data.normal
+    ? `Normal price: <b style="color:var(--text)">${money(data.normal)}</b> (middle of ${m.sample_size} ${m.basis === 'sold' ? 'sold prices' : 'asking prices'}${m.p25_price ? `; most are ${money(m.p25_price)}–${money(m.p75_price)}` : ''}). "vs normal" below compares each price to that, or to its own closer match when it's a deal.`
+    : 'No normal price yet for this machine.';
+  const states = [...new Set(data.listings.map(l => l.state).filter(Boolean))].sort();
+  $('state').innerHTML = '<option value="">all</option>' + states.map(s => `<option>${esc(s)}</option>`).join('');
+  render();
+}
+
+function vsHtml(l) {
+  if (l.vs_normal_pct === null) return '<div class="vs near">no normal price to compare</div>';
+  const amt = money(Math.abs(l.price - l.normal)), p = l.vs_normal_pct;
+  if (p <= -5) return `<div class="vs under">${amt} under normal (${p}%)</div>`;
+  if (p >= 5) return `<div class="vs above">${amt} above normal (+${p}%)</div>`;
+  return `<div class="vs near">about normal (${p > 0 ? '+' : ''}${p}%)</div>`;
+}
+
+function card(l) {
+  const where = [l.city, l.state].filter(Boolean).join(', ') || 'location unknown';
+  const tag = l.sale_type === 'auction' ? `<span class="tag">Auction${l.auction_ends ? ' · ' + endsIn(l.auction_ends) : ''}</span>` : '<span class="tag">Buy now / offer</span>';
+  return `<div class="card li">
+    ${l.image_url ? `<img src="${esc(l.image_url)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
+    <div class="title">${l.url ? `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title)}</a>` : esc(l.title)}</div>
+    <div class="row2"><div class="price">${money(l.price)}</div>${l.is_deal ? '<span class="tag deal">deal</span>' : ''}</div>
+    ${vsHtml(l)}
+    <div class="meta">${tag}<span>${esc(where)}</span>${l.year ? `<span>${l.year}</span>` : ''}${l.hours ? `<span>${Number(l.hours).toLocaleString()} hrs</span>` : ''}<span>${esc(srcName(l.source))}</span></div>
+    ${l.url ? `<div class="actions"><a href="${esc(l.url)}" target="_blank" rel="noopener" style="flex:1"><button class="primary" style="width:100%">View listing</button></a></div>` : ''}
+  </div>`;
+}
+
+function render(reset = true) {
+  if (!data) return;
+  if (reset) shown = 60;
+  const far = 8.64e15, kind = $('kind').value, st = $('state').value, sort = $('sort').value;
+  const sorters = {
+    vs: (a, b) => (a.vs_normal_pct ?? 999) - (b.vs_normal_pct ?? 999),
+    vs_high: (a, b) => (b.vs_normal_pct ?? -999) - (a.vs_normal_pct ?? -999),
+    price_low: (a, b) => a.price - b.price,
+    price_high: (a, b) => b.price - a.price,
+    year: (a, b) => (b.year || 0) - (a.year || 0),
+    ending: (a, b) => (a.auction_ends ? new Date(a.auction_ends) : far) - (b.auction_ends ? new Date(b.auction_ends) : far),
+  };
+  const rows = data.listings.filter(l => (kind === 'all' || (kind === 'auction' ? l.sale_type === 'auction' : l.sale_type !== 'auction')) && (!st || l.state === st)).sort(sorters[sort]);
+  $('count').textContent = `${rows.length} listing${rows.length === 1 ? '' : 's'}`;
+  $('list').innerHTML = rows.length ? rows.slice(0, shown).map(card).join('') : '<div class="empty">Nothing matches those filters.</div>';
+  $('more').innerHTML = rows.length > shown ? `<button id="more-btn">Show ${Math.min(60, rows.length - shown)} more (${rows.length - shown} left)</button>` : '';
+  if ($('more-btn')) $('more-btn').onclick = () => { const y = window.scrollY; shown += 60; render(false); window.scrollTo(0, y); };
+}
+['sort', 'kind', 'state'].forEach(id => $(id).onchange = () => render());
+load().catch(e => { if (!['login', 'subscribe'].includes(e.message)) $('list').innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
+</script></body></html>
