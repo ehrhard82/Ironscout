@@ -22,7 +22,8 @@ async function api(path, opts = {}) {
 /** Returns the current user or redirects to login. */
 async function requireUser() {
   const u = await api('/api/auth/me');
-  window.IS_STAFF = !!u && (u.role === 'admin' || u.role === 'broker');
+  window.IS_STAFF = !!u && ['admin', 'broker', 'agent'].includes(u.role);
+  window.CAN_HIDE = !!u && (u.role === 'admin' || u.role === 'broker');   // agents work deals but can't hide listings for everyone
   return u;
 }
 
@@ -31,7 +32,7 @@ function renderHeader(user, active) {
     ['/', 'Deals'],
     ['/account.html', 'Settings'],
   ];
-  if (user && (user.role === 'admin' || user.role === 'broker')) nav.splice(1, 0, ['/broker.html', 'Broker board']);
+  if (user && ['admin', 'broker', 'agent'].includes(user.role)) nav.splice(1, 0, ['/broker.html', 'Broker board']);
   if (user && user.role === 'admin') nav.push(['/admin.html', 'Admin'], ['/status.html', 'Status']);
   return `<h1><a href="/">Iron<span>Scout</span></a></h1>
     <nav>${nav.map(([h, t]) => `<a href="${h}" class="${active === h ? 'on' : ''}">${t}</a>`).join('')}</nav>
@@ -103,7 +104,7 @@ async function blockListing(listingId, btn) {
     const card = btn && btn.closest('.card'); if (card) card.remove();
   } catch (e) { alert(e.message); }
 }
-const blockBtn = (listingId) => window.IS_STAFF && listingId ? `<button onclick="blockListing('${listingId}', this)" title="Wrong kind of machine">Not this machine</button>` : '';
+const blockBtn = (listingId) => window.CAN_HIDE && listingId ? `<button onclick="blockListing('${listingId}', this)" title="Wrong kind of machine">Not this machine</button>` : '';
 
 // ---- broker actions (used by broker.html; the page defines reloadDeals()) ----
 async function brokerAct(id, action, body) {

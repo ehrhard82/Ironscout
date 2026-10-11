@@ -25,7 +25,7 @@ winch truck,2016 Peterbilt 367 winch truck,98500,2026-09-02,2016,210000,Odessa,T
 
   <div class="section"><h2>Users</h2><div class="card">
     <div class="row" style="margin-bottom:10px"><input id="nu-email" placeholder="email" type="email" autocapitalize="none" style="flex:1 1 100%"><input id="nu-pw" placeholder="password (8+ characters)" style="flex:1 1 100%"><input id="nu-name" placeholder="name" style="flex:1 1 100%">
-      <select id="nu-role"><option>subscriber</option><option>broker</option><option>admin</option></select><button id="nu-btn">Create account</button><span id="nu-msg" class="err small"></span></div>
+      <select id="nu-role"><option>subscriber</option><option>agent</option><option>broker</option><option>admin</option></select><button id="nu-btn">Create account</button><span id="nu-msg" class="err small"></span></div>
     <table id="users"><thead><tr><th>Email</th><th>Role</th><th>Subscription</th><th>Machines</th><th>Last login</th><th></th></tr></thead><tbody></tbody></table>
   </div></div>
 
@@ -46,7 +46,7 @@ async function load() {
   $('requests').querySelector('tbody').innerHTML = reqs.requests.map(r => `<tr><td>${esc(r.term)}</td><td>${esc(r.email || '—')}</td><td>${new Date(r.created_at).toLocaleDateString()}</td><td>${r.status}</td>
     <td>${r.status === 'pending' ? `<button onclick="act('/api/admin/requests/${r.id}/approve')">Approve & fetch</button> <button onclick="act('/api/admin/requests/${r.id}/reject')">Reject</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">None</td></tr>';
   $('users').querySelector('tbody').innerHTML = users.users.map(u => `<tr><td>${esc(u.email)}<br><span class="muted small">${esc(u.name || '')}</span></td>
-    <td><select onchange="patchUser(${u.id},{role:this.value})"><option ${u.role==='subscriber'?'selected':''}>subscriber</option><option ${u.role==='broker'?'selected':''}>broker</option><option ${u.role==='admin'?'selected':''}>admin</option></select></td>
+    <td><select onchange="patchUser(${u.id},{role:this.value})"><option ${u.role==='subscriber'?'selected':''}>subscriber</option><option ${u.role==='agent'?'selected':''}>agent</option><option ${u.role==='broker'?'selected':''}>broker</option><option ${u.role==='admin'?'selected':''}>admin</option></select></td>
     <td>${esc(u.subscription_status)}${u.subscription_ends_at ? `<br><span class="muted small">until ${new Date(u.subscription_ends_at).toLocaleDateString()}</span>` : ''}</td>
     <td>${u.watchlists}</td><td class="muted small">${u.last_login ? new Date(u.last_login).toLocaleString() : '—'}</td>
     <td>${u.role === 'subscriber' && !['active','trialing'].includes(u.subscription_status) ? `<button onclick="patchUser(${u.id},{subscription_status:'active',subscription_ends_at:'${new Date(Date.now()+365*86400000).toISOString()}'})" title="Give free access for a year">Comp 1 yr</button>` : ''}</td></tr>`).join('');

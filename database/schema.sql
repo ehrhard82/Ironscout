@@ -195,7 +195,7 @@ CREATE TABLE IF NOT EXISTS users (
   email                VARCHAR(255) NOT NULL UNIQUE,
   password_hash        TEXT NOT NULL,
   name                 VARCHAR(255),
-  role                 VARCHAR(20) NOT NULL DEFAULT 'subscriber', -- admin | broker | subscriber
+  role                 VARCHAR(20) NOT NULL DEFAULT 'subscriber', -- admin | broker | agent | subscriber
   -- Stripe
   stripe_customer_id   VARCHAR(255) UNIQUE,
   stripe_subscription_id VARCHAR(255),

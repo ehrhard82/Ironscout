@@ -63,7 +63,7 @@
 let user, status = 'open', products = [];
 async function load() {
   user = await requireUser();
-  if (!['admin', 'broker'].includes(user.role)) { location.href = '/'; return; }
+  if (!['admin', 'broker', 'agent'].includes(user.role)) { location.href = '/'; return; }
   $('hdr').innerHTML = renderHeader(user, '/broker.html'); wireLogout();
   const [dash, prods] = await Promise.all([api('/api/broker/dashboard'), api('/api/products')]);
   products = prods.products;
@@ -75,9 +75,11 @@ async function load() {
     <div class="kpi"><div class="v">${dash.sold}</div><div class="l">Sold</div></div>
     <div class="kpi"><div class="v">${money(dash.commission_earned)}</div><div class="l">Commission earned (${dash.commission_rate}%)</div></div>`;
   await Promise.all([reloadDeals(), loadBuyers(), loadBlocked()]);
+  if (!window.CAN_HIDE) $('blocked-box').style.display = 'none';
   if (location.hash === '#buyers') showTab('buyers');
 }
 async function loadBlocked() {
+  if (!window.CAN_HIDE) return;
   const rows = await api('/api/broker/blocked');
   $('blocked').innerHTML = rows.length ? rows.map(r => `<div class="row" style="padding:4px 0"><span>${esc(r.title)} <span class="muted">(${esc(r.product || '')}, ${money(r.price)})</span></span><button style="margin-left:auto" onclick="restoreListing('${r.id}')">Restore</button></div>`).join('') : '<span class="muted">None.</span>';
 }

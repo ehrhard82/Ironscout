@@ -64,8 +64,8 @@ app.use('/api/lookup', require('./routes/lookup'));
 app.use('/api/cron', require('./routes/cron'));
 
 // Role-restricted
-app.use('/api/broker', auth.requireRole('admin', 'broker'), require('./routes/broker'));
-app.use('/api/buyers', auth.requireRole('admin', 'broker'), require('./routes/buyers'));
+app.use('/api/broker', auth.requireRole('admin', 'broker', 'agent'), require('./routes/broker'));
+app.use('/api/buyers', auth.requireRole('admin', 'broker', 'agent'), require('./routes/buyers'));
 app.use('/api/admin', auth.requireRole('admin'), require('./routes/admin'));
 
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));

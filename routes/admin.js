@@ -66,7 +66,7 @@ router.post('/users', async (req, res, next) => {
     const { email, password, name, role = 'subscriber' } = req.body || {};
     if (!validEmail(email)) return res.status(400).json({ error: 'Valid email required' });
     if (!validPassword(password)) return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    if (!['admin', 'broker', 'subscriber'].includes(role)) return res.status(400).json({ error: 'Bad role' });
+    if (!['admin', 'broker', 'agent', 'subscriber'].includes(role)) return res.status(400).json({ error: 'Bad role' });
     const r = await pool.query(
       `INSERT INTO users (email, password_hash, name, role) VALUES ($1,$2,$3,$4) RETURNING id, email, name, role`,
       [email.trim().toLowerCase(), hashPassword(password), name || null, role]);
@@ -76,7 +76,7 @@ router.post('/users', async (req, res, next) => {
 router.patch('/users/:id', async (req, res, next) => {
   try {
     const { role, subscription_status, subscription_ends_at } = req.body || {};
-    if (role && !['admin', 'broker', 'subscriber'].includes(role)) return res.status(400).json({ error: 'Bad role' });
+    if (role && !['admin', 'broker', 'agent', 'subscriber'].includes(role)) return res.status(400).json({ error: 'Bad role' });
     const r = await pool.query(
       `UPDATE users SET role = COALESCE($2, role), subscription_status = COALESCE($3, subscription_status),
          subscription_ends_at = COALESCE($4, subscription_ends_at)

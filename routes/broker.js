@@ -6,6 +6,7 @@
 const router = require('express').Router();
 const pool = require('../lib/db');
 
+const curators = (req, res, next) => ['admin', 'broker'].includes(req.user.role) ? next() : res.status(403).json({ error: 'Only admin or broker accounts can hide listings' });
 const BROKER = () => process.env.BROKER_ID || 'broker_1';
 const RATE = () => Number(process.env.COMMISSION_PERCENTAGE || 10);
 
@@ -23,7 +24,7 @@ async function setStatus(dealId, status, extra = {}, notes = '') {
 }
 
 // "Not this machine": hide a wrong match everywhere, re-score that machine now.
-router.post('/listings/:id/block', async (req, res, next) => {
+router.post('/listings/:id/block', curators, async (req, res, next) => {
   try {
     const id = req.params.id;
     const l = (await pool.query('SELECT product_id FROM listings WHERE id = $1', [id])).rows[0];
@@ -33,7 +34,7 @@ router.post('/listings/:id/block', async (req, res, next) => {
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
-router.delete('/listings/:id/block', async (req, res, next) => {
+router.delete('/listings/:id/block', curators, async (req, res, next) => {
   try {
     const l = (await pool.query('DELETE FROM listing_blocks WHERE listing_id = $1 RETURNING listing_id', [req.params.id]));
     const p = (await pool.query('SELECT product_id FROM listings WHERE id = $1', [req.params.id])).rows[0];
@@ -41,7 +42,7 @@ router.delete('/listings/:id/block', async (req, res, next) => {
     res.json({ ok: true, restored: l.rowCount });
   } catch (e) { next(e); }
 });
-router.get('/blocked', async (req, res, next) => {
+router.get('/blocked', curators, async (req, res, next) => {
   try {
     res.json((await pool.query(`SELECT l.id, l.title, l.price::float AS price, l.url, (SELECT name FROM products WHERE id = l.product_id) AS product
                                 FROM listing_blocks b JOIN listings l ON l.id = b.listing_id ORDER BY b.blocked_at DESC LIMIT 100`)).rows);
