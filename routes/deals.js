@@ -33,7 +33,7 @@ router.get('/', async (req, res, next) => {
     if (minMargin) add('d.estimated_margin >= ?', Number(minMargin));
     if (minScore) add('d.deal_score >= ?', Number(minScore));
     if (status && status !== 'all') add('d.commission_status = ?', status);
-    if (staff && hasBuyer === '1') where.push(`${buyerCountSql(req.user)} > 0`);
+    if (staff && hasBuyer === '1') where.push(`(${buyerCountSql(req.user)} > 0 OR d.buyer_id IN (SELECT id FROM buyers WHERE owner_user_id = ${Number(req.user.id)}))`);
 
     const order = {
       score: 'd.deal_score DESC, d.discount_percent DESC',
@@ -46,7 +46,7 @@ router.get('/', async (req, res, next) => {
     }[sort] || 'd.deal_score DESC';
 
     params.push(Math.min(Number(limit) || 50, 500));
-    const select = staff ? DEAL_SELECT.replace('p.name AS product', `p.name AS product, d.buyer_id, ${buyersSql(req.user)}`) : DEAL_SELECT;
+    const select = staff ? DEAL_SELECT.replace('p.name AS product', `p.name AS product, d.buyer_id, (SELECT json_build_object('company', cb.company, 'contact', cb.contact_name) FROM buyers cb WHERE cb.id = d.buyer_id AND cb.owner_user_id = ${Number(req.user.id)}) AS claimed_buyer, ${buyersSql(req.user)}`) : DEAL_SELECT;
     const sql = `${select} ${where.length ? 'AND ' + where.join(' AND ') : ''}
                  ORDER BY ${order} LIMIT $${params.length}`;
     const r = await pool.query(sql, params);

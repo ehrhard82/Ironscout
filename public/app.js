@@ -86,6 +86,7 @@ function dealCard(d, { broker = false, saved = null } = {}) {
       <div class="score">${d.deal_score}<small>score</small></div>
     </div>
     <div class="price">${money(d.price)}<span class="mkt">${money(d.market_price)}</span></div>
+    ${d.claimed_buyer ? `<div class="buyers">✅ <b>Claimed for ${esc(d.claimed_buyer.company)}</b>${d.claimed_buyer.contact ? ` (${esc(d.claimed_buyer.contact)})` : ''}</div>` : ''}
     ${buyerLine}
     <div class="save">${why}</div>
     <div class="small muted">${Math.round(d.discount_percent)}% below ${esc(d.compared_to)}</div>

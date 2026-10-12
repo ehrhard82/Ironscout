@@ -68,12 +68,7 @@ async function load() {
   const [dash, prods] = await Promise.all([api('/api/broker/dashboard'), api('/api/products')]);
   products = prods.products;
   $('products').innerHTML = products.map(p => `<option value="${esc(p.name)}">`).join('');
-  $('kpis').innerHTML = `
-    <div class="kpi"><div class="v">${dash.open_deals}</div><div class="l">Open deals</div></div>
-    ${dash.open_margin_potential === null ? '' : `<div class="kpi"><div class="v">${money(dash.open_margin_potential)}</div><div class="l">Margin on the table</div></div>`}
-    <div class="kpi"><div class="v">${dash.claimed}</div><div class="l">Claimed</div></div>
-    <div class="kpi"><div class="v">${dash.sold}</div><div class="l">Sold</div></div>
-    ${dash.commission_earned === null ? '' : `<div class="kpi"><div class="v">${money(dash.commission_earned)}</div><div class="l">Commission earned (${dash.commission_rate}%)</div></div>`}`;
+  renderKpis(dash);
   await Promise.all([reloadDeals(), loadBuyers(), loadBlocked()]);
   if (!window.CAN_HIDE) $('blocked-box').style.display = 'none';
   if (location.hash === '#buyers') showTab('buyers');
@@ -93,8 +88,18 @@ function showTab(t) {
   history.replaceState(null, '', '/broker.html' + (t === 'buyers' ? '#buyers' : ''));
 }
 function setStatus(s) { status = s; document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.status === s)); reloadDeals(); }
+function renderKpis(dash) {
+  $('kpis').innerHTML = `
+    <div class="kpi"><div class="v">${dash.open_deals}</div><div class="l">Open deals</div></div>
+    ${dash.open_margin_potential === null ? '' : `<div class="kpi"><div class="v">${money(dash.open_margin_potential)}</div><div class="l">Margin on the table</div></div>`}
+    <div class="kpi"><div class="v">${dash.claimed}</div><div class="l">Claimed</div></div>
+    <div class="kpi"><div class="v">${dash.sold}</div><div class="l">Sold</div></div>
+    ${dash.commission_earned === null ? '' : `<div class="kpi"><div class="v">${money(dash.commission_earned)}</div><div class="l">Commission earned (${dash.commission_rate}%)</div></div>`}`;
+}
+async function loadKpis() { try { renderKpis(await api('/api/broker/dashboard')); } catch (e) {} }
 async function reloadDeals() {
   const y = window.scrollY;
+  loadKpis();
   const r = await api(`/api/deals?status=${status}&sort=buyers&limit=200${$('hasbuyer').checked ? '&hasBuyer=1' : ''}`);
   window.lastDeals = r.deals;
   $('deals').innerHTML = r.deals.length ? r.deals.map(d => dealCard(d, { broker: true })).join('')
