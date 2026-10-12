@@ -51,7 +51,8 @@ async function load() {
   $('products').innerHTML = prods.products.map(p => `<option value="${esc(p.name)}">`).join('');
   $('requests').querySelector('tbody').innerHTML = reqs.requests.map(r => `<tr><td>${esc(r.term)}</td><td>${esc(r.email || '—')}</td><td>${new Date(r.created_at).toLocaleDateString()}</td><td>${r.status}</td>
     <td>${r.status === 'pending' ? `<button onclick="act('/api/admin/requests/${r.id}/approve')">Approve & fetch</button> <button onclick="act('/api/admin/requests/${r.id}/reject')">Reject</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">None</td></tr>';
-  $('users').querySelector('tbody').innerHTML = users.users.map(u => `<tr><td>${esc(u.email)}<br><span class="muted small">${esc(u.name || '')}</span></td>
+  $('users').querySelector('tbody').innerHTML = users.users.map(u => `<tr><td>${esc(u.email)}<br><span class="muted small">${esc(u.name || '')}</span><br><button style="padding:4px 10px;margin-top:4px" data-edit="${u.id}">Edit</button>
+      <div id="ue-${u.id}" hidden style="margin-top:8px;min-width:230px"><input id="ue-name-${u.id}" placeholder="Name" value="${esc(u.name || '')}" style="width:100%;margin-bottom:6px"><input id="ue-email-${u.id}" placeholder="Email" type="email" autocapitalize="none" value="${esc(u.email)}" style="width:100%;margin-bottom:6px"><input id="ue-pw-${u.id}" placeholder="New password (leave blank to keep)" style="width:100%;margin-bottom:6px"><button class="primary" data-saveuser="${u.id}">Save</button> <span class="muted small">A new password signs them out everywhere.</span></div></td>
     <td><select onchange="patchUser(${u.id},{role:this.value})"><option ${u.role==='subscriber'?'selected':''}>subscriber</option><option ${u.role==='agent'?'selected':''}>agent</option><option ${u.role==='broker'?'selected':''}>broker</option><option ${u.role==='admin'?'selected':''}>admin</option></select></td>
     <td><select onchange="patchUser(${u.id},{org_id:this.value})">${orgs.map(o => `<option value="${o.id}" ${o.id === u.org_id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select></td>
     <td>${esc(u.subscription_status)}${u.subscription_ends_at ? `<br><span class="muted small">until ${new Date(u.subscription_ends_at).toLocaleDateString()}</span>` : ''}</td>
@@ -72,6 +73,15 @@ async function load() {
   }).join('') || '<div class="muted">No runs yet</div>';
 }
 async function act(path, body) { try { await api(path, { method: 'POST', body }); load(); } catch (e) { alert(e.message); } }
+document.addEventListener('click', async (ev) => {
+  const e = ev.target.closest('[data-edit]'), sv = ev.target.closest('[data-saveuser]');
+  if (e) { const box = document.getElementById('ue-' + e.dataset.edit); box.hidden = !box.hidden; }
+  if (sv) {
+    const id = sv.dataset.saveuser, body = { name: document.getElementById('ue-name-' + id).value, email: document.getElementById('ue-email-' + id).value };
+    const pw = document.getElementById('ue-pw-' + id).value; if (pw) body.password = pw;
+    try { await api('/api/admin/users/' + id, { method: 'PATCH', body }); load(); } catch (err) { alert(err.message); }
+  }
+});
 async function patchUser(id, body) { try { await api('/api/admin/users/' + id, { method: 'PATCH', body }); load(); } catch (e) { alert(e.message); } }
 $('ingest-btn').onclick = async () => { const t = $('ingest-term').value.trim(); if (!t) return; try { await api('/api/admin/ingest', { method: 'POST', body: { product: t } }); $('ingest-msg').textContent = `Fetching "${t}"… check runs in a minute.`; } catch (e) { alert(e.message); } };
 $('refresh-btn').onclick = () => load();

@@ -108,15 +108,23 @@ router.post('/users', async (req, res, next) => {
 });
 router.patch('/users/:id', async (req, res, next) => {
   try {
-    const { role, subscription_status, subscription_ends_at, org_id } = req.body || {};
+    const { role, subscription_status, subscription_ends_at, org_id, name, email, password } = req.body || {};
+    if (email !== undefined && !validEmail(email)) return res.status(400).json({ error: 'Valid email required' });
+    if (password && !validPassword(password)) return res.status(400).json({ error: 'Password must be at least 8 characters' });
     if (role && !['admin', 'broker', 'agent', 'subscriber'].includes(role)) return res.status(400).json({ error: 'Bad role' });
     const r = await pool.query(
       `UPDATE users SET role = COALESCE($2, role), subscription_status = COALESCE($3, subscription_status),
-         subscription_ends_at = COALESCE($4, subscription_ends_at), org_id = COALESCE($5, org_id)
+         subscription_ends_at = COALESCE($4, subscription_ends_at), org_id = COALESCE($5, org_id),
+         name = CASE WHEN $6::boolean THEN $7 ELSE name END,
+         email = COALESCE($8, email),
+         password_hash = COALESCE($9, password_hash)
        WHERE id = $1 RETURNING id, email, name, role, org_id, subscription_status, subscription_ends_at`,
-      [req.params.id, role || null, subscription_status || null, subscription_ends_at || null, org_id ? Number(org_id) : null]);
+      [req.params.id, role || null, subscription_status || null, subscription_ends_at || null, org_id ? Number(org_id) : null,
+       name !== undefined, name ? String(name).trim().slice(0, 255) : null,
+       email ? email.trim().toLowerCase() : null, password ? hashPassword(password) : null]);
+    if (password && r.rows.length) await pool.query('DELETE FROM sessions WHERE user_id = $1', [req.params.id]);   // new password = signed out everywhere
     r.rows.length ? res.json(r.rows[0]) : res.status(404).json({ error: 'Not found' });
-  } catch (e) { next(e); }
+  } catch (e) { e.code === '23505' ? res.status(409).json({ error: 'That email is already used by another account' }) : next(e); }
 });
 
 // ---- product requests from subscribers --------------------------------------
