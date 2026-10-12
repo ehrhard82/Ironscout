@@ -82,6 +82,14 @@ router.patch('/orgs/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.delete('/orgs/:id', async (req, res, next) => {
+  try {
+    const n = (await pool.query('SELECT COUNT(*)::int AS n FROM users WHERE org_id = $1', [req.params.id])).rows[0].n;
+    if (n) return res.status(409).json({ error: 'Move the people out of this company first.' });
+    const r = await pool.query('DELETE FROM organizations WHERE id = $1 RETURNING name', [req.params.id]);
+    r.rows.length ? res.json({ deleted: r.rows[0].name }) : res.status(404).json({ error: 'Not found' });
+  } catch (e) { next(e); }
+});
 router.post('/users', async (req, res, next) => {
   try {
     const { email, password, name, role = 'subscriber', org_id, org_name } = req.body || {};
