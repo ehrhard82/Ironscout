@@ -1,0 +1,93 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How it works · IronScout</title><link rel="stylesheet" href="/app.css">
+<style>
+  main { max-width:760px; margin:0 auto; }
+  h2 { font-size:19px; margin:28px 0 8px; } h2:first-child { margin-top:8px; }
+  p, li { line-height:1.55; } ul { padding-left:20px; margin:6px 0; }
+  .box { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:10px 0; }
+  .k { color:var(--accent); font-weight:600; }
+  .staff { display:none; } body.is-staff .staff { display:block; } body.is-staff span.staff, body.is-staff b.staff { display:inline; }
+  .curator { display:none; } body.is-curator .curator { display:block; }
+  .admin { display:none; } body.is-admin .admin { display:block; }
+</style></head><body>
+<header id="hdr"></header>
+<main>
+  <h2>What IronScout does</h2>
+  <p>Type a machine. IronScout pulls every live listing for it from GovDeals, IronPlanet, Ritchie Bros and Machinio, works out what that machine is <b>normally worth</b> (from real sold prices when it has enough of them, asking prices otherwise), and flags the listings priced well under that. You see the value, the deals, and what each one would cost delivered.</p>
+  <p class="muted small">Everything here is an estimate from public listings. Always open the listing and check the machine before you quote anyone.</p>
+
+  <h2>Looking up a machine</h2>
+  <div class="box">
+    <ul>
+      <li>On <b>Deals</b>, type the machine the way a seller would list it: <span class="k">winch truck</span>, <span class="k">frac pump</span>, <span class="k">kill truck</span>. Short and plain works best.</li>
+      <li>A machine we already track opens instantly. A new one starts a fetch and takes 2–5 minutes.</li>
+      <li>You get the <b>market value</b>, <b>recent sales we've seen</b>, and the <b>deals</b>. Tap <b>See every live listing</b> to see all of them, not just the cheap ones, sorted by price or by how far above or below normal they sit.</li>
+      <li>Tap <b>Watch</b> to add it to your list and get alerts when new deals show up.</li>
+    </ul>
+  </div>
+
+  <h2>Reading a deal card</h2>
+  <div class="box">
+    <ul>
+      <li><b>Score (0–10)</b>: how good and how trustworthy the deal looks. High score = big discount backed by plenty of comparable sales. Sort by it.</li>
+      <li><b>"$X under what similar ones sold for"</b>: the saving against the comparison. The grey line under it says exactly what it was compared to (state, years, brand, how many).</li>
+      <li><b>Delivered to your yard</b>: price + the auction house's buyer's premium + a freight estimate for the miles to the yard you set in Settings. Set that first or you won't see it.</li>
+      <li><b class="staff">Delivered to your buyers</b><span class="staff">: one quote per buyer who wants this machine, to wherever they said to deliver it.</span></li>
+      <li><b>"thin data"</b> or <b>"verify: unusually low"</b>: not enough comparable sales, or a price so low it's probably the wrong machine or a parts unit. Treat these as leads to check, not facts.</li>
+      <li><b>Auction · ends in …</b>: an auction price is only the current bid. It isn't a deal until it closes.</li>
+    </ul>
+  </div>
+
+  <h2>Your settings</h2>
+  <div class="box">
+    <ul>
+      <li><b>Where I take delivery</b>: your yard. Drives the delivered price on every card.</li>
+      <li><b>My commission</b>: your cut, as a percent. Private to you; every deal then shows what you'd earn at market value. Nobody else sees it.</li>
+      <li><b>Alerts</b>: which machines, which states, how big a discount, email or text, how often.</li>
+    </ul>
+  </div>
+
+  <div class="staff">
+    <h2>Broker board — working deals as a team</h2>
+    <div class="box">
+      <p><b>Buyers.</b> Add the people you sell to and what they're looking for (machine, max price, states, oldest year, and where they want it delivered — that can be different from their address). Deals that match say <b>"2 buyers want this"</b> and come first. Your buyer list is yours alone; teammates can't see it.</p>
+      <p><b>Claim.</b> When you start working a deal for a buyer, tap <b>Claim</b>. That tells your teammates it's spoken for:</p>
+      <ul>
+        <li>They still see the card, greyed, with <b>"Claimed by Dusty for a buyer · 2 hr ago · holds about 46 hr more"</b>.</li>
+        <li>A claim holds for <b>48 hours</b>, or until the auction ends if that's sooner. Then the deal goes back to open on its own, so nothing sits locked.</li>
+        <li>If you need a claimed deal for your own buyer, <b>Claim anyway</b> asks you to confirm first. Talk to your teammate.</li>
+        <li><b>Release</b> gives a claim up early. <b>Mark sold</b> records the sale. <b>Pass</b> hides it from your company's board.</li>
+      </ul>
+      <p>Claims are inside your company only. Other companies using IronScout never see them, and theirs never affect you.</p>
+    </div>
+  </div>
+
+  <div class="curator">
+    <h2>Not this machine</h2>
+    <div class="box">
+      <p>Searching "swivel" can turn up a dental chair with a swivel seat. When a listing isn't the kind of machine you meant, tap <b>Not this machine</b> on the card. It disappears for everyone in your company. You can bring it back from <b>Hidden listings</b> at the bottom of the Broker board. Agents don't have this button.</p>
+    </div>
+  </div>
+
+  <h2>Getting better numbers</h2>
+  <div class="box">
+    <ul>
+      <li><b>Names matter.</b> "Pump truck" pulls in fire trucks and concrete pumpers. "Cementing pump truck" doesn't. Use the name sellers use.</li>
+      <li><b>Rare machines are thin.</b> Acidizing units and nitrogen units barely show up on public auctions. Values for those are ballparks until there's more data.</li>
+      <li class="admin"><b>Your own sold history is the best data.</b> Admin → Import sold prices takes a spreadsheet of what you actually sold; market values then rest on real sales. <a href="/sales-template.csv" download>Download the template</a>.</li>
+      <li><b>Freight is an estimate</b> from typical heavy-haul rates per mile by weight class. A hauler's quote replaces it.</li>
+    </ul>
+  </div>
+
+  <p class="muted small" style="margin-top:28px">Questions or something looks wrong? Tell whoever gave you your login.</p>
+</main>
+<script src="/app.js"></script>
+<script>
+(async () => {
+  const user = await requireUser();
+  $('hdr').innerHTML = renderHeader(user, '/help.html'); wireLogout();
+  if (['admin', 'broker', 'agent'].includes(user.role)) document.body.classList.add('is-staff');
+  if (['admin', 'broker'].includes(user.role)) document.body.classList.add('is-curator');
+  if (user.role === 'admin') document.body.classList.add('is-admin');
+})().catch(e => { if (!['login', 'subscribe'].includes(e.message)) console.error(e); });
+</script></body></html>

@@ -33,6 +33,7 @@ function renderHeader(user, active) {
     ['/account.html', 'Settings'],
   ];
   if (user && ['admin', 'broker', 'agent'].includes(user.role)) nav.splice(1, 0, ['/broker.html', 'Broker board']);
+  nav.push(['/help.html', 'How it works']);
   if (user && user.role === 'admin') nav.push(['/admin.html', 'Admin'], ['/status.html', 'Status']);
   return `<h1><a href="/">Iron<span>Scout</span></a></h1>
     <nav>${nav.map(([h, t]) => `<a href="${h}" class="${active === h ? 'on' : ''}">${t}</a>`).join('')}</nav>
