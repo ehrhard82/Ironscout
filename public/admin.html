@@ -43,6 +43,7 @@ winch truck,2016 Peterbilt 367 winch truck,98500,2026-09-02,2016,210000,Odessa,T
 </main>
 <script src="/app.js"></script>
 <script>
+let openOrg = null;
 async function load() {
   const user = await requireUser();
   if (user.role !== 'admin') { location.href = '/'; return; }
@@ -58,9 +59,23 @@ async function load() {
     <td>${esc(u.subscription_status)}${u.subscription_ends_at ? `<br><span class="muted small">until ${new Date(u.subscription_ends_at).toLocaleDateString()}</span>` : ''}</td>
     <td>${u.watchlists}</td><td class="muted small">${u.last_login ? new Date(u.last_login).toLocaleString() : '—'}</td>
     <td>${u.role === 'subscriber' && !['active','trialing'].includes(u.subscription_status) ? `<button onclick="patchUser(${u.id},{subscription_status:'active',subscription_ends_at:'${new Date(Date.now()+365*86400000).toISOString()}'})" title="Give free access for a year">Comp 1 yr</button>` : ''}</td></tr>`).join('');
-  $('orgs').innerHTML = orgs.map(o => `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)"><div style="flex:1 1 150px;min-width:0"><b>${esc(o.name)}</b><br><span class="muted small">${o.members} member${o.members === 1 ? '' : 's'}</span></div><button style="padding:6px 12px" data-ren="${o.id}" data-name="${esc(o.name)}">Rename</button>${o.members ? '' : `<button class="danger" style="padding:6px 12px" data-delorg="${o.id}" data-name="${esc(o.name)}">Delete</button>`}</div>`).join('');
-  $('orgs').onclick = (ev) => { const r = ev.target.closest('[data-ren]'), d = ev.target.closest('[data-delorg]'); if (r) renameOrg(r.dataset.ren, r.dataset.name); if (d) deleteOrg(d.dataset.delorg, d.dataset.name); };
-  $('nu-org').innerHTML += orgs.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
+  const orgOpts = (skip) => orgs.filter(o => o.id !== skip).map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
+  $('orgs').innerHTML = orgs.map(o => {
+    const outside = users.users.filter(u => u.org_id !== o.id);
+    return `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><div style="flex:1 1 150px;min-width:0"><b>${esc(o.name)}</b><br><span class="muted small">${o.members} member${o.members === 1 ? '' : 's'}</span></div><button style="padding:6px 12px" data-orgedit="${o.id}">Edit</button><button style="padding:6px 12px" data-ren="${o.id}" data-name="${esc(o.name)}">Rename</button>${o.members ? '' : `<button class="danger" style="padding:6px 12px" data-delorg="${o.id}" data-name="${esc(o.name)}">Delete</button>`}</div>
+      <div id="oe-${o.id}" hidden style="margin-top:8px">
+        ${o.people.length ? o.people.map(p => `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:4px 0"><div style="flex:1 1 150px;min-width:0">${esc(p.name || p.email)}<br><span class="muted small">${esc(p.email)} · ${esc(p.role)}</span></div><select data-moveuser="${p.id}"><option value="">Move to…</option>${orgOpts(o.id)}</select></div>`).join('') : '<div class="muted small">Nobody yet.</div>'}
+        <div style="display:flex;gap:8px;margin-top:8px"><select id="oa-${o.id}" style="flex:1"><option value="">Add a person…</option>${outside.map(u => `<option value="${u.id}">${esc(u.name || u.email)} (${esc(u.email)}${u.org_name ? ' · now in ' + esc(u.org_name) : ''})</option>`).join('')}</select><button class="primary" data-addto="${o.id}">Add</button></div>
+      </div></div>`; }).join('');
+  $('orgs').onclick = async (ev) => {
+    const r = ev.target.closest('[data-ren]'), d = ev.target.closest('[data-delorg]'), e = ev.target.closest('[data-orgedit]'), a = ev.target.closest('[data-addto]');
+    if (r) renameOrg(r.dataset.ren, r.dataset.name); if (d) deleteOrg(d.dataset.delorg, d.dataset.name);
+    if (e) { const box = document.getElementById('oe-' + e.dataset.orgedit); box.hidden = !box.hidden; }
+    if (a) { const sel = document.getElementById('oa-' + a.dataset.addto); if (sel.value) { try { await api('/api/admin/users/' + sel.value, { method: 'PATCH', body: { org_id: a.dataset.addto } }); openOrg = a.dataset.addto; load(); } catch (err) { alert(err.message); } } }
+  };
+  $('orgs').onchange = async (ev) => { const m = ev.target.closest('[data-moveuser]'); if (m && m.value) { try { await api('/api/admin/users/' + m.dataset.moveuser, { method: 'PATCH', body: { org_id: m.value } }); openOrg = m.closest('[id^=oe-]').id.slice(3); load(); } catch (err) { alert(err.message); } } };
+  if (openOrg) { const box = document.getElementById('oe-' + openOrg); if (box) box.hidden = false; openOrg = null; }
+  $('nu-org').innerHTML = '<option value="">new company for this person</option>' + orgs.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
   $('host').textContent = location.host;
   api('/version').then(v => { $('host').textContent = location.host + ' · build ' + v.build; }).catch(() => {});
   $('sources').textContent = (runs.sources || []).join(', ');

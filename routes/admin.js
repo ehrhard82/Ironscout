@@ -64,7 +64,7 @@ router.get('/users', async (req, res, next) => {
 // ---- companies --------------------------------------------------------------
 // Everyone in a company shares claims and the team view; companies never see each other's.
 router.get('/orgs', async (req, res, next) => {
-  try { res.json((await pool.query(`SELECT o.id, o.name, (SELECT COUNT(*)::int FROM users u WHERE u.org_id = o.id) AS members FROM organizations o ORDER BY o.name`)).rows); } catch (e) { next(e); }
+  try { res.json((await pool.query(`SELECT o.id, o.name, (SELECT COUNT(*)::int FROM users u WHERE u.org_id = o.id) AS members, (SELECT COALESCE(json_agg(json_build_object('id', u.id, 'name', u.name, 'email', u.email, 'role', u.role) ORDER BY u.email), '[]'::json) FROM users u WHERE u.org_id = o.id) AS people FROM organizations o ORDER BY o.name`)).rows); } catch (e) { next(e); }
 });
 router.post('/orgs', async (req, res, next) => {
   try {
