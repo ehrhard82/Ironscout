@@ -259,11 +259,42 @@ CREATE TABLE IF NOT EXISTS product_requests (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Listings staff marked "not this machine": excluded from market values, deals and lists
+-- Companies: each account belongs to one. The listing/market data is shared by everyone;
+-- claims, hidden listings and the team are per company.
+CREATE TABLE IF NOT EXISTS organizations (
+  id         SERIAL PRIMARY KEY,
+  name       VARCHAR(200) NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS org_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL;
+
+-- Listings staff marked "not this machine". org_id NULL = hidden for everyone (made by the platform
+-- admin, also kept out of market values); otherwise hidden only for that company.
 CREATE TABLE IF NOT EXISTS listing_blocks (
-  listing_id UUID PRIMARY KEY REFERENCES listings(id) ON DELETE CASCADE,
+  listing_id UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
   blocked_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   blocked_at TIMESTAMP DEFAULT NOW()
+);
+ALTER TABLE listing_blocks ADD COLUMN IF NOT EXISTS org_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE;
+ALTER TABLE listing_blocks DROP CONSTRAINT IF EXISTS listing_blocks_pkey;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_listing_blocks_uq ON listing_blocks (listing_id, COALESCE(org_id, 0));
+
+ALTER TABLE broker_interactions ADD COLUMN IF NOT EXISTS org_id INTEGER;
+
+-- A company's claim on a listing (one per company): claimed -> sold, or passed. Claims lapse
+-- (expires_at) so a deal can't sit locked forever.
+CREATE TABLE IF NOT EXISTS deal_claims (
+  listing_id        UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  org_id            INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  buyer_id          INTEGER,
+  status            VARCHAR(20) NOT NULL DEFAULT 'claimed',   -- claimed | sold | passed
+  claimed_at        TIMESTAMP DEFAULT NOW(),
+  expires_at        TIMESTAMP,
+  sale_price        NUMERIC(12,2),
+  commission_earned NUMERIC(12,2) DEFAULT 0,
+  notes             TEXT,
+  PRIMARY KEY (listing_id, org_id)
 );
 
 -- Subscribers' own saved deals (independent of the broker claim workflow)

@@ -11,6 +11,7 @@ const router = require('express').Router();
 const pool = require('../lib/db');
 const { buyersSql } = require('../lib/buyers');
 const { DEAL_COLS } = require('./watchlists');
+const { blockedSql, notPassedSql, attachClaims } = require('../lib/orgs');
 
 const STATE = (s) => String(s || '').trim().toUpperCase().slice(0, 2) || null;
 const STATES = (v) => (Array.isArray(v) ? v : String(v || '').split(/[,\s]+/)).map(STATE).filter(Boolean);
@@ -39,7 +40,8 @@ async function list(where = 'b.active', params = []) {   // callers always pass 
                 'states', bw.states, 'min_year', bw.min_year, 'notes', bw.notes, 'deliver_city', bw.deliver_city, 'deliver_state', bw.deliver_state) ORDER BY p.name), '[]'::json)
        FROM buyer_wants bw JOIN products p ON p.id = bw.product_id WHERE bw.buyer_id = b.id AND bw.active) AS wants,
       (SELECT COUNT(*)::int FROM deals d JOIN listings l ON l.id = d.listing_id JOIN buyer_wants bw ON bw.buyer_id = b.id AND bw.active AND bw.product_id = d.product_id
-        WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()) AND d.commission_status = 'open'
+        WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()) AND l.id NOT IN (SELECT listing_id FROM listing_blocks WHERE org_id IS NULL OR org_id = u.org_id)
+          AND NOT EXISTS (SELECT 1 FROM deal_claims x WHERE x.listing_id = l.id AND x.org_id = u.org_id AND x.status IN ('passed', 'sold'))
           AND (bw.max_price IS NULL OR l.price <= bw.max_price)
           AND (bw.states IS NULL OR cardinality(bw.states) = 0 OR l.state = ANY(bw.states))
           AND (bw.min_year IS NULL OR l.year IS NULL OR l.year >= bw.min_year)) AS open_matches
@@ -111,12 +113,13 @@ router.get('/:id/matches', mine, async (req, res, next) => {
     const r = await pool.query(`
       SELECT ${DEAL_COLS}, ${buyersSql(req.user)}
       FROM deals d JOIN listings l ON l.id = d.listing_id JOIN products p ON p.id = d.product_id
-      WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()) AND d.commission_status <> 'passed'
+      WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()) AND ${notPassedSql(req.user)} AND l.id NOT IN ${blockedSql(req.user)}
         AND EXISTS (SELECT 1 FROM buyer_wants bw WHERE bw.buyer_id = $1 AND bw.active AND bw.product_id = d.product_id
           AND (bw.max_price IS NULL OR l.price <= bw.max_price)
           AND (bw.states IS NULL OR cardinality(bw.states) = 0 OR l.state = ANY(bw.states))
           AND (bw.min_year IS NULL OR l.year IS NULL OR l.year >= bw.min_year))
       ORDER BY d.deal_score DESC LIMIT 100`, [req.params.id]);
+    await attachClaims(r.rows, req.user);
     res.json({ count: r.rows.length, deals: require('../lib/landed').attachLanded(r.rows, {}) });
   } catch (e) { next(e); }
 });

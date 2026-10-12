@@ -84,6 +84,7 @@ async function ensureSchema() {
   const sql = fs.readFileSync(path.join(__dirname, 'database', 'schema.sql'), 'utf8');
   await pool.query(sql);
   console.log('Database schema verified');
+  await require('./lib/orgs').ensureOrgs().catch(e => console.error('company setup failed:', e.message));
   // Any run left open belonged to a previous process that was restarted (a redeploy, a
   // free-tier spin-down) before it finished. Say so instead of leaving a silent 0.
   const r = await pool.query(

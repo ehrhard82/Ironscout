@@ -28,8 +28,9 @@ function effective(user, w = {}) {
 }
 
 /** SQL WHERE fragment (uses aliases d=deals, l=listings) for an effective filter set. */
-function matchSql(f, params) {
-  const where = [`d.commission_status <> 'passed'`, 'l.is_active', '(l.auction_ends IS NULL OR l.auction_ends > NOW())'];
+function matchSql(f, params, user) {
+  const { blockedSql, notPassedSql } = require('../lib/orgs');
+  const where = [notPassedSql(user), `l.id NOT IN ${blockedSql(user)}`, 'l.is_active', '(l.auction_ends IS NULL OR l.auction_ends > NOW())'];
   if (f.product_id) where.push(`d.product_id = $${params.push(f.product_id)}`);
   if (f.product_ids && f.product_ids.length) where.push(`d.product_id = ANY($${params.push(f.product_ids)})`);
   if (f.states && f.states.length) where.push(`l.state = ANY($${params.push(f.states)})`);
@@ -45,7 +46,7 @@ async function fullUser(id) {
 }
 
 const DEAL_COLS = `
-  d.id, d.deal_score, d.discount_percent, d.estimated_margin, d.market_price, d.compared_to, d.flagged_at, d.commission_status,
+  d.id, d.deal_score, d.discount_percent, d.estimated_margin, d.market_price, d.compared_to, d.flagged_at, d.commission_status, l.id AS listing_id,
   l.title, l.price, l.year, l.hours, l.city, l.state, l.latitude, l.longitude, l.url, l.image_url, l.source, l.sale_type, l.auction_ends, p.name AS product`;
 
 router.get('/', async (req, res, next) => {
@@ -56,7 +57,7 @@ router.get('/', async (req, res, next) => {
        WHERE w.user_id = $1 ORDER BY p.name`, [req.user.id]);
     for (const w of r.rows) {
       const params = [];
-      const c = await pool.query(`SELECT COUNT(*)::int AS n FROM deals d JOIN listings l ON l.id = d.listing_id WHERE ${matchSql(effective(u, w), params)}`, params);
+      const c = await pool.query(`SELECT COUNT(*)::int AS n FROM deals d JOIN listings l ON l.id = d.listing_id WHERE ${matchSql(effective(u, w), params, u)}`, params);
       w.matching_deals = c.rows[0].n;
     }
     res.json({ count: r.rows.length, watchlists: r.rows });
@@ -111,7 +112,8 @@ router.get('/deals', async (req, res, next) => {
       SELECT ${DEAL_COLS}, (sd.deal_id IS NOT NULL) AS saved${require('../lib/buyers').isStaff(req.user) ? ', ' + require('../lib/buyers').buyersSql(req.user) : ''}
       FROM deals d JOIN listings l ON l.id = d.listing_id JOIN products p ON p.id = d.product_id
       LEFT JOIN saved_deals sd ON sd.deal_id = d.id AND sd.user_id = $1
-      WHERE ${matchSql(f, params)} ORDER BY d.deal_score DESC LIMIT 300`, params);
+      WHERE ${matchSql(f, params, u)} ORDER BY d.deal_score DESC LIMIT 300`, params);
+    await require('../lib/orgs').attachClaims(r.rows, req.user);
     res.json({ count: r.rows.length, deals: require('../lib/landed').attachLanded(r.rows, u) });
   } catch (e) { next(e); }
 });

@@ -11,6 +11,7 @@ const { requireAccess } = require('../lib/auth');
 const { matchSql, effective, DEAL_COLS } = require('./watchlists');
 const { buyersSql, isStaff } = require('../lib/buyers');
 const { attachLanded } = require('../lib/landed');
+const { blockedSql, notPassedSql, attachClaims } = require('../lib/orgs');
 
 router.get('/', requireAccess, async (req, res, next) => {
   try {
@@ -43,11 +44,11 @@ router.get('/', requireAccess, async (req, res, next) => {
       pool.query(`SELECT ${DEAL_COLS}, (sd.deal_id IS NOT NULL) AS saved${isStaff(req.user) ? ', ' + buyersSql(req.user) : ''}
                   FROM deals d JOIN listings l ON l.id = d.listing_id JOIN products p ON p.id = d.product_id
                   LEFT JOIN saved_deals sd ON sd.deal_id = d.id AND sd.user_id = $1
-                  WHERE ${matchSql(f, params)} ORDER BY d.deal_score DESC LIMIT 100`, params),
+                  WHERE ${matchSql(f, params, u)} ORDER BY d.deal_score DESC LIMIT 100`, params),
       pool.query(`SELECT COUNT(*) FILTER (WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()))::int AS active_listings,
-                         COUNT(d.id) FILTER (WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()) AND d.commission_status <> 'passed')::int AS all_deals,
+                         COUNT(d.id) FILTER (WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()) AND ${notPassedSql(u)})::int AS all_deals,
                          MAX(l.last_seen) AS last_updated
-                  FROM listings l LEFT JOIN deals d ON d.listing_id = l.id WHERE l.product_id = $1 AND l.id NOT IN (SELECT listing_id FROM listing_blocks)`, [product.id]),
+                  FROM listings l LEFT JOIN deals d ON d.listing_id = l.id WHERE l.product_id = $1 AND l.id NOT IN ${blockedSql(u)}`, [product.id]),
       pool.query('SELECT 1 FROM watchlists WHERE user_id = $1 AND product_id = $2', [req.user.id, product.id]),
       pool.query(`SELECT title, price, year, hours, city, state, url, source, sold_at FROM sales
                   WHERE product_id = $1 ORDER BY sold_at DESC NULLS LAST, first_seen DESC LIMIT 60`, [product.id]),
@@ -55,6 +56,7 @@ router.get('/', requireAccess, async (req, res, next) => {
     ]);
     const us = market.rows.find(r => r.region_type === 'country');
     const qs = require('../lib/ingestQueue').status();
+    await attachClaims(deals.rows, req.user);
     res.json({
       tracked: true, query: q, product, other_matches: p.rows.slice(1),
       fetching: qs.running === product.name || qs.queued.includes(product.name),

@@ -55,33 +55,58 @@ router.get('/runs', async (req, res, next) => {
 router.get('/users', async (req, res, next) => {
   try {
     const r = await pool.query(`
-      SELECT u.id, u.email, u.name, u.role, u.subscription_status, u.subscription_ends_at, u.last_login, u.created_at,
+      SELECT u.id, u.email, u.name, u.role, u.org_id, (SELECT name FROM organizations o WHERE o.id = u.org_id) AS org_name, u.subscription_status, u.subscription_ends_at, u.last_login, u.created_at,
              (SELECT COUNT(*)::int FROM watchlists w WHERE w.user_id = u.id) AS watchlists
       FROM users u ORDER BY u.created_at DESC`);
     res.json({ count: r.rows.length, users: r.rows });
   } catch (e) { next(e); }
 });
+// ---- companies --------------------------------------------------------------
+// Everyone in a company shares claims and the team view; companies never see each other's.
+router.get('/orgs', async (req, res, next) => {
+  try { res.json((await pool.query(`SELECT o.id, o.name, (SELECT COUNT(*)::int FROM users u WHERE u.org_id = o.id) AS members FROM organizations o ORDER BY o.name`)).rows); } catch (e) { next(e); }
+});
+router.post('/orgs', async (req, res, next) => {
+  try {
+    const name = String(req.body?.name || '').trim().slice(0, 200);
+    if (!name) return res.status(400).json({ error: 'Company name required' });
+    res.status(201).json((await pool.query('INSERT INTO organizations (name) VALUES ($1) RETURNING id, name', [name])).rows[0]);
+  } catch (e) { next(e); }
+});
+router.patch('/orgs/:id', async (req, res, next) => {
+  try {
+    const name = String(req.body?.name || '').trim().slice(0, 200);
+    if (!name) return res.status(400).json({ error: 'Company name required' });
+    const r = await pool.query('UPDATE organizations SET name = $2 WHERE id = $1 RETURNING id, name', [req.params.id, name]);
+    r.rows.length ? res.json(r.rows[0]) : res.status(404).json({ error: 'Not found' });
+  } catch (e) { next(e); }
+});
+
 router.post('/users', async (req, res, next) => {
   try {
-    const { email, password, name, role = 'subscriber' } = req.body || {};
+    const { email, password, name, role = 'subscriber', org_id, org_name } = req.body || {};
     if (!validEmail(email)) return res.status(400).json({ error: 'Valid email required' });
     if (!validPassword(password)) return res.status(400).json({ error: 'Password must be at least 8 characters' });
     if (!['admin', 'broker', 'agent', 'subscriber'].includes(role)) return res.status(400).json({ error: 'Bad role' });
+    let org = org_id ? Number(org_id) : null;
+    if (!org) {   // a new company named in the form, else one for this person
+      org = (await pool.query('INSERT INTO organizations (name) VALUES ($1) RETURNING id', [String(org_name || name || email.split('@')[0]).trim().slice(0, 200)])).rows[0].id;
+    }
     const r = await pool.query(
-      `INSERT INTO users (email, password_hash, name, role) VALUES ($1,$2,$3,$4) RETURNING id, email, name, role`,
-      [email.trim().toLowerCase(), hashPassword(password), name || null, role]);
+      `INSERT INTO users (email, password_hash, name, role, org_id) VALUES ($1,$2,$3,$4,$5) RETURNING id, email, name, role, org_id`,
+      [email.trim().toLowerCase(), hashPassword(password), name || null, role, org]);
     res.status(201).json(r.rows[0]);
   } catch (e) { e.code === '23505' ? res.status(409).json({ error: 'Email already exists' }) : next(e); }
 });
 router.patch('/users/:id', async (req, res, next) => {
   try {
-    const { role, subscription_status, subscription_ends_at } = req.body || {};
+    const { role, subscription_status, subscription_ends_at, org_id } = req.body || {};
     if (role && !['admin', 'broker', 'agent', 'subscriber'].includes(role)) return res.status(400).json({ error: 'Bad role' });
     const r = await pool.query(
       `UPDATE users SET role = COALESCE($2, role), subscription_status = COALESCE($3, subscription_status),
-         subscription_ends_at = COALESCE($4, subscription_ends_at)
-       WHERE id = $1 RETURNING id, email, name, role, subscription_status, subscription_ends_at`,
-      [req.params.id, role || null, subscription_status || null, subscription_ends_at || null]);
+         subscription_ends_at = COALESCE($4, subscription_ends_at), org_id = COALESCE($5, org_id)
+       WHERE id = $1 RETURNING id, email, name, role, org_id, subscription_status, subscription_ends_at`,
+      [req.params.id, role || null, subscription_status || null, subscription_ends_at || null, org_id ? Number(org_id) : null]);
     r.rows.length ? res.json(r.rows[0]) : res.status(404).json({ error: 'Not found' });
   } catch (e) { next(e); }
 });

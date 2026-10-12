@@ -2,6 +2,7 @@
 // Searches ALL active listings (not just deals), with deal info attached when present.
 const router = require('express').Router();
 const pool = require('../lib/db');
+const { blockedSql, notPassedSql } = require('../lib/orgs');
 
 router.get('/', async (req, res, next) => {
   try {
@@ -54,9 +55,9 @@ router.get('/machine', async (req, res, next) => {
     const r = await pool.query(`
       SELECT l.id, l.title, l.price::float AS price, l.year, l.hours, l.city, l.state, l.url, l.image_url, l.source, l.sale_type,
              l.auction_ends, l.posted_date, d.market_price::float AS deal_market, d.deal_score
-      FROM listings l LEFT JOIN deals d ON d.listing_id = l.id AND d.commission_status <> 'passed'
+      FROM listings l LEFT JOIN deals d ON d.listing_id = l.id AND ${notPassedSql(req.user)}
       WHERE l.product_id = $1 AND l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW())
-        AND NOT (${JUNK_SQL}) AND NOT (${ATTACH_SQL}) AND l.id NOT IN (SELECT listing_id FROM listing_blocks)
+        AND NOT (${JUNK_SQL}) AND NOT (${ATTACH_SQL}) AND l.id NOT IN ${blockedSql(req.user)}
       ORDER BY l.price ASC LIMIT 600`, [pid]);
     const listings = r.rows.map(l => {
       const ref = l.deal_market || normal;

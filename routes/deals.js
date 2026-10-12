@@ -4,8 +4,9 @@ const router = require('express').Router();
 const pool = require('../lib/db');
 const { buyersSql, buyerCountSql, isStaff } = require('../lib/buyers');
 const { attachLanded } = require('../lib/landed');
+const { blockedSql, EFFECTIVE_STATUS_SQL, notPassedSql, attachClaims } = require('../lib/orgs');
 
-const DEAL_SELECT = `
+const dealSelect = (user) => `
   SELECT d.id, d.deal_score, d.discount_percent, d.discount_amount, d.estimated_margin, d.market_price,
          d.compared_to, d.commission_status, d.flagged_at,
          l.id AS listing_id, l.title, l.price, l.condition, l.year, l.hours,
@@ -14,7 +15,7 @@ const DEAL_SELECT = `
   FROM deals d
   JOIN listings l ON l.id = d.listing_id
   JOIN products p ON p.id = d.product_id
-  WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()) AND l.id NOT IN (SELECT listing_id FROM listing_blocks)`;
+  WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()) AND l.id NOT IN ${blockedSql(user)}`;
 
 router.get('/', async (req, res, next) => {
   try {
@@ -32,8 +33,13 @@ router.get('/', async (req, res, next) => {
     if (minPrice) add('l.price >= ?', Number(minPrice));
     if (minMargin) add('d.estimated_margin >= ?', Number(minMargin));
     if (minScore) add('d.deal_score >= ?', Number(minScore));
-    if (status && status !== 'all') add('d.commission_status = ?', status);
-    if (staff && hasBuyer === '1') where.push(`(${buyerCountSql(req.user)} > 0 OR d.buyer_id IN (SELECT id FROM buyers WHERE owner_user_id = ${Number(req.user.id)}))`);
+    // Status is per company: open (including deals a teammate has claimed, shown with a banner), claimed, sold, passed.
+    const ORG = Number(req.user.org_id) || 0;
+    const dcJoin = `LEFT JOIN deal_claims dc ON dc.listing_id = l.id AND dc.org_id = ${ORG}`;
+    const eff = EFFECTIVE_STATUS_SQL('dc');
+    if (status === 'open') where.push(`(${eff} = 'open' OR (${eff} = 'claimed' AND dc.user_id IS DISTINCT FROM ${Number(req.user.id)}))`);
+    else if (status && status !== 'all') where.push(`${eff} = '${['claimed', 'sold', 'passed'].includes(status) ? status : 'open'}'`);
+    if (staff && hasBuyer === '1') where.push(`(${buyerCountSql(req.user)} > 0 OR dc.buyer_id IN (SELECT id FROM buyers WHERE owner_user_id = ${Number(req.user.id)}))`);
 
     const order = {
       score: 'd.deal_score DESC, d.discount_percent DESC',
@@ -46,18 +52,20 @@ router.get('/', async (req, res, next) => {
     }[sort] || 'd.deal_score DESC';
 
     params.push(Math.min(Number(limit) || 50, 500));
-    const select = staff ? DEAL_SELECT.replace('p.name AS product', `p.name AS product, d.buyer_id, (SELECT json_build_object('company', cb.company, 'contact', cb.contact_name) FROM buyers cb WHERE cb.id = d.buyer_id AND cb.owner_user_id = ${Number(req.user.id)}) AS claimed_buyer, ${buyersSql(req.user)}`) : DEAL_SELECT;
-    const sql = `${select} ${where.length ? 'AND ' + where.join(' AND ') : ''}
+    const base = dealSelect(req.user);
+    const select = staff ? base.replace('p.name AS product', `p.name AS product, ${buyersSql(req.user)}`) : base;
+    const sql = `${select.replace('WHERE l.is_active', dcJoin + ' WHERE l.is_active')} ${where.length ? 'AND ' + where.join(' AND ') : ''}
                  ORDER BY ${order} LIMIT $${params.length}`;
     const r = await pool.query(sql, params);
     const u = (await pool.query('SELECT yard_city, yard_state, commission_percent FROM users WHERE id = $1', [req.user.id])).rows[0] || {};
+    await attachClaims(r.rows, req.user);
     res.json({ count: r.rows.length, deals: attachLanded(r.rows, u) });
   } catch (e) { next(e); }
 });
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const r = await pool.query(`${DEAL_SELECT} AND d.id = $1`, [req.params.id]);
+    const r = await pool.query(`${dealSelect(req.user)} AND d.id = $1`, [req.params.id]);
     if (!r.rows.length) return res.status(404).json({ error: 'Deal not found' });
     const deal = r.rows[0];
     const [stats, history, log] = await Promise.all([

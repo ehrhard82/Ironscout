@@ -55,6 +55,14 @@ function endsIn(when) {
 const SOURCE_NAMES = { govdeals: 'GovDeals', ironplanet: 'IronPlanet', rbauction: 'Ritchie Bros', machinio: 'Machinio', ebay: 'eBay', craigslist: 'Craigslist', csv: 'Import', manual: 'Manual' };
 const srcName = (s) => SOURCE_NAMES[s] || s;
 
+function ago(ts) {
+  const m = Math.max(0, Math.round((Date.now() - new Date(ts)) / 60000));
+  return m < 2 ? 'just now' : m < 90 ? `${m} min ago` : m < 2880 ? `${Math.round(m / 60)} hr ago` : `${Math.round(m / 1440)} days ago`;
+}
+function untilWhen(ts) {
+  const h = Math.round((new Date(ts) - Date.now()) / 3600000);
+  return h <= 1 ? 'under an hour more' : h < 48 ? `about ${h} hr more` : `about ${Math.round(h / 24)} days more`;
+}
 function dealCard(d, { broker = false, saved = null } = {}) {
   const where = [d.city, d.state].filter(Boolean).join(', ') || 'location unknown';
   const isAuction = d.sale_type === 'auction';
@@ -71,7 +79,8 @@ function dealCard(d, { broker = false, saved = null } = {}) {
   let actions = '';
   if (broker) {
     if (d.commission_status === 'open') actions = `<button class="primary" onclick="brokerClaim(${d.id})">Claim${buyers.length ? ' for buyer' : ''}</button><button onclick="brokerAct(${d.id},'pass')">Pass</button>`;
-    else if (d.commission_status === 'claimed') actions = `<button onclick="brokerSold(${d.id})">Mark sold</button><button onclick="brokerAct(${d.id},'pass')">Pass</button>`;
+    else if (d.commission_status === 'claimed' && d.claim && d.claim.by_me) actions = `<button class="primary" onclick="brokerSold(${d.id})">Mark sold</button><button onclick="brokerAct(${d.id},'release')">Release</button><button onclick="brokerAct(${d.id},'pass')">Pass</button>`;
+    else if (d.commission_status === 'claimed') actions = `<button onclick="brokerClaim(${d.id})">Claim anyway</button>${window.CAN_HIDE ? `<button onclick="brokerAct(${d.id},'release')">Release theirs</button>` : ''}`;
     else if (d.commission_status === 'sold') actions = `<button disabled>Sold</button>`;
   } else {
     actions = saved ? `<button onclick="unsaveDeal(${d.id})">Saved ✓</button>` : `<button onclick="saveDeal(${d.id})">Save</button>`;
@@ -79,14 +88,16 @@ function dealCard(d, { broker = false, saved = null } = {}) {
   }
   if (broker && d.url) actions += `<a href="${esc(d.url)}" target="_blank" rel="noopener" style="flex:1"><button style="width:100%">View</button></a>`;
   actions += blockBtn(d.listing_id);
-  return `<div class="card status-${d.commission_status || 'open'} ${verify ? 'verify' : ''}" id="deal-${d.id}">
+  const claimed = d.commission_status === 'claimed' && d.claim;
+  const claimLine = claimed ? `<div class="buyers">${d.claim.by_me ? '✅ <b>You claimed this</b>' : `⏳ <b>Claimed by ${esc(d.claim.by)}</b>`}${d.claimed_buyer ? ` for ${esc(d.claimed_buyer.company)}` : ' for a buyer'} · ${ago(d.claim.at)}${d.claim.expires_at ? ` · holds ${untilWhen(d.claim.expires_at)}` : ''}${d.claim.by_me ? '' : ' — better hurry!'}</div>` : '';
+  return `<div class="card status-${d.commission_status || 'open'} ${verify ? 'verify' : ''} ${claimed && !d.claim.by_me ? 'claimed-other' : ''}" id="deal-${d.id}">
     ${d.image_url ? `<a class="photo" href="${esc(d.url || '#')}" target="_blank" rel="noopener"><img src="${esc(d.image_url)}" alt="" loading="lazy" onerror="this.parentNode.remove()"></a>` : ''}
     <div class="top">
       <div class="title">${d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.title)}</a>` : esc(d.title)}</div>
       <div class="score">${d.deal_score}<small>score</small></div>
     </div>
     <div class="price">${money(d.price)}<span class="mkt">${money(d.market_price)}</span></div>
-    ${d.claimed_buyer ? `<div class="buyers">✅ <b>Claimed for ${esc(d.claimed_buyer.company)}</b>${d.claimed_buyer.contact ? ` (${esc(d.claimed_buyer.contact)})` : ''}</div>` : ''}
+    ${claimLine}
     ${buyerLine}
     <div class="save">${why}</div>
     <div class="small muted">${Math.round(d.discount_percent)}% below ${esc(d.compared_to)}</div>
@@ -125,7 +136,15 @@ async function brokerClaim(id) {
       const n = Number(pick); if (n >= 1 && n <= d.buyers.length) buyer_id = d.buyers[n - 1].id;
     }
   }
-  return brokerAct(id, 'claim', { buyer_id });
+  try {
+    await api(`/api/broker/deals/${id}/claim`, { method: 'POST', body: { buyer_id } });
+  } catch (e) {
+    if (!/already claimed/i.test(e.message)) { alert(e.message); return; }
+    if (!confirm(e.message + ' Claim it for your buyer anyway?')) return;
+    try { await api(`/api/broker/deals/${id}/claim`, { method: 'POST', body: { buyer_id, confirm: true } }); } catch (e2) { alert(e2.message); return; }
+  }
+  if (typeof reloadDeals === 'function') reloadDeals();
+
 }
 async function brokerSold(id) {
   const p = prompt('Sale price ($)?'); if (!p) return;
