@@ -231,6 +231,17 @@ router.post('/import-sales', express.text({ type: '*/*', limit: '5mb' }), async 
   } catch (e) { next(e); }
 });
 
+// POST /api/admin/test-email   sends a test message to the admin's own address
+router.post('/test-email', async (req, res) => {
+  try {
+    if (!process.env.RESEND_API_KEY) return res.status(400).json({ error: 'RESEND_API_KEY is not set in Render yet' });
+    const r = await require('../lib/mailer').send({ to: req.user.email, subject: 'IronScout test email', text: `Email is working. Sent ${new Date().toLocaleString()} from ${process.env.MAIL_FROM || '(MAIL_FROM not set)'}.` });
+    res.json({ ok: true, to: req.user.email, id: r.id });
+  } catch (e) {
+    res.status(500).json({ error: e.response?.data?.message || e.response?.data?.error || e.message });
+  }
+});
+
 // GET /api/admin/status   one-screen health summary (what a screenshot needs to show)
 router.get('/status', async (req, res, next) => {
   try {
