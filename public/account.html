@@ -126,7 +126,7 @@ async function load() {
     $('machines').innerHTML = prods.products.map(p => `<label><input type="checkbox" value="${p.id}" ${mine.has(p.id) ? 'checked' : ''}><span>${esc(p.name)}${p.us_median ? `<br><span class="muted small">median ${money(p.us_median)}</span>` : ''}</span></label>`).join('')
       || '<div class="muted">No machines tracked yet — request one below.</div>';
     const saved = await api('/api/watchlists/saved');
-    $('saved').innerHTML = saved.deals.length ? saved.deals.map(d => dealCard(d, { saved: true })).join('') : '<div class="empty">Nothing saved yet. Hit "Save" on a deal.</div>';
+    $('saved').innerHTML = saved.deals.length ? saved.deals.map(d => dealCard(d, { saved: true })).join('') : '<div class="empty">Nothing saved yet. Tap <b>Save</b> on any deal card and it\'ll wait for you here.</div>';
   } else {
     $('machines').innerHTML = '<div class="muted">Subscribe to pick machines.</div>';
     $('saved').innerHTML = '';

@@ -12,7 +12,7 @@ async function load() {
   const r = await api('/api/watchlists/deals');
   $('count').textContent = r.count;
   $('list').innerHTML = r.deals.length ? r.deals.map(d => dealCard(d, { saved: d.saved })).join('')
-    : '<div class="empty">Nothing right now. You\'ll be alerted when something shows up. <a href="/account.html">Add machines</a> or loosen your settings.</div>';
+    : '<div class="empty">Nothing under market on your machines right now. You\'ll be alerted when something shows up.<br><span class="small">Watching more machines or loosening the % and $ limits in <a href="/account.html">Settings</a> will surface more.</span></div>';
 }
 async function saveDeal(id) { await api('/api/watchlists/saved/' + id, { method: 'POST' }); load(); }
 async function unsaveDeal(id) { await api('/api/watchlists/saved/' + id, { method: 'DELETE' }); load(); }

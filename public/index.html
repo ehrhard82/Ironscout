@@ -18,6 +18,16 @@
   .sortrow { display:flex; gap:8px; flex-wrap:nowrap; align-items:center; }
   .sortrow label { display:flex; align-items:center; gap:6px; min-width:0; flex:1 1 0; }
   .sortrow select { min-width:0; width:100%; padding:8px 8px; font-size:14px; }
+  .setup { max-width:760px; margin:0 auto 10px; padding:0 20px; }
+  .setup .card { gap:4px; }
+  .setup h3 { margin:0 0 4px; font-size:16px; }
+  .setup .step { display:flex; gap:10px; align-items:center; padding:7px 0; border-top:1px solid var(--line); text-decoration:none; color:var(--text); }
+  .setup .step:first-of-type { border-top:0; }
+  .setup .tick { width:22px; height:22px; border-radius:50%; border:2px solid var(--line); flex:0 0 auto; display:grid; place-items:center; font-size:13px; }
+  .setup .done .tick { background:var(--good); border-color:var(--good); color:#06240f; }
+  .setup .done span.t { color:var(--muted); text-decoration:line-through; }
+  .setup .step small { color:var(--muted); display:block; }
+  .setup .dismiss { margin-left:auto; color:var(--muted); font-size:13px; background:none; border:0; min-height:0; padding:0; }
 </style></head><body>
 <header id="hdr"></header>
 <div class="hero">
@@ -26,6 +36,7 @@
   <form class="big" id="f"><input id="q" placeholder="wheel loader, winch truck, excavator…" list="products" autofocus autocomplete="off"><datalist id="products"></datalist><button class="primary" type="submit">Look it up</button></form>
   <div class="chips" id="chips"></div>
 </div>
+<div class="setup" id="setup"></div>
 <div id="result"></div>
 <main><div id="list" class="grid"></div></main>
 <script src="/app.js"></script>
@@ -45,6 +56,26 @@ async function init() {
   $('chips').innerHTML = [...mine.map(m => `<button onclick="go('${esc(m)}')" title="On your watchlist">★ ${esc(m)}</button>`), ...popular.map(m => `<button onclick="go('${esc(m)}')">${esc(m)}</button>`)].join('')
     + (mine.length ? `<button onclick="location.href='/mine.html'" style="border-color:var(--accent);color:var(--accent)">All my machines' deals →</button>` : '');
   if (qs.get('q')) go(qs.get('q')); else feed();
+  showSetup(wl.watchlists.length).catch(() => {});
+}
+
+// First-run checklist: the three things that make the site useful. Goes away once they're done (or dismissed).
+async function showSetup(watchCount) {
+  let hidden = false; try { hidden = localStorage.getItem('setup-dismissed') === '1'; } catch {}
+  if (hidden) return;
+  const staff = ['admin', 'broker', 'agent'].includes(user.role);
+  const [s, b] = await Promise.all([api('/api/settings'), staff ? api('/api/buyers').catch(() => ({ buyers: [] })) : Promise.resolve(null)]);
+  let looked = false; try { looked = localStorage.getItem('looked-up') === '1'; } catch {}
+  const steps = [
+    { done: !!s.yard_state, href: '/account.html#yard', t: 'Set where you take delivery', d: 'Every deal then shows the price landed at your yard.' },
+    { done: looked || watchCount > 0, href: '#', onclick: "document.getElementById('q').focus();return false", t: 'Look up a machine', d: 'Type one above: winch truck, frac pump, wheel loader…' },
+  ];
+  if (staff) steps.push({ done: !!(b && b.buyers && b.buyers.length), href: '/broker.html#buyers', t: 'Add a buyer', d: 'Who you sell to and what they want. Matching deals come first, with their delivered price.' });
+  if (s.commission_percent === null || s.commission_percent === undefined) steps.push({ done: false, href: '/account.html#comm', t: 'Enter your commission %', d: 'Private to you. Each deal then shows what you\'d earn.' });
+  if (steps.every(x => x.done)) return;
+  const n = steps.filter(x => x.done).length;
+  $('setup').innerHTML = `<div class="card"><div class="row" style="justify-content:space-between"><h3>Get set up <span class="muted small" style="font-weight:400">${n} of ${steps.length} done</span></h3><button class="dismiss" onclick="try{localStorage.setItem('setup-dismissed','1')}catch(e){};document.getElementById('setup').innerHTML=''">hide</button></div>
+    ${steps.map(x => `<a class="step ${x.done ? 'done' : ''}" href="${x.href}"${x.onclick ? ` onclick="${x.onclick}"` : ''}><span class="tick">${x.done ? '✓' : ''}</span><span><span class="t">${x.t}</span><small>${x.d}</small></span></a>`).join('')}</div>`;
 }
 
 // Landing view: the best open deals across every machine, so a new account is never blank
@@ -64,6 +95,7 @@ async function go(q, opts = {}) {
   clearTimeout(pollTimer);               // a pending check for some other machine must never replace this one
   const keep = opts.keep && current === q, y = window.scrollY;
   $('q').value = q; current = q;
+  try { localStorage.setItem('looked-up', '1'); } catch {}
   history.replaceState(null, '', '/?q=' + encodeURIComponent(q));
   if (!keep) { $('result').innerHTML = ''; $('list').innerHTML = '<div class="empty">Looking…</div>'; }
   const r = await api('/api/lookup?q=' + encodeURIComponent(q) + (showAll ? '&all=1' : ''));

@@ -103,7 +103,10 @@ async function reloadDeals() {
   const r = await api(`/api/deals?status=${status}&sort=buyers&limit=200${$('hasbuyer').checked ? '&hasBuyer=1' : ''}`);
   window.lastDeals = r.deals;
   $('deals').innerHTML = r.deals.length ? r.deals.map(d => dealCard(d, { broker: true })).join('')
-    : `<div class="empty">Nothing ${status} right now${$('hasbuyer').checked ? ' that a buyer is waiting for' : ''}.</div>`;
+    : `<div class="empty">${status === 'open'
+        ? ($('hasbuyer').checked ? 'No open deal matches a buyer right now. Untick the box to see every open deal, or add what your buyers want on the Buyers tab.' : 'No open deals yet. Look up a machine on the <a href="/">Deals</a> page to start tracking it; deals show up here once there are listings under market.')
+        : status === 'claimed' ? 'Nothing claimed. Tap <b>Claim</b> on an open deal when you start working it for a buyer, and it moves here.'
+        : 'Nothing sold through IronScout yet. When a claimed deal closes, tap <b>Mark sold</b> and it lands here with your commission.'}</div>`;
   window.scrollTo(0, y);                 // stay where you were after claim/pass
 }
 async function loadBuyers() {
@@ -136,7 +139,7 @@ async function loadBuyers() {
             <button onclick="patchBuyer(${b.id},{status:'${b.status === 'prospect' ? 'customer' : 'prospect'}'})">Mark as ${b.status === 'prospect' ? 'customer' : 'prospect'}</button>
             <button class="danger" onclick="if(confirm('Retire ${esc(b.company).replace(/'/g, '')}?'))patchBuyer(${b.id},{active:false})">Retire</button></div>
         </div></details>
-    </div>`).join('') : '<div class="empty">No buyers yet. Add the people your team is buying for and every matching deal will light up.</div>';
+    </div>`).join('') : '<div class="empty">No buyers yet. Tap <b>+ Add a buyer</b> above, put in who they are, what machine they want and where to deliver it. Every deal that fits them then says "1 buyer wants this" and comes first — with the delivered price to their yard.</div>';
 }
 $('b-save').onclick = async () => {
   $('b-msg').textContent = '';
