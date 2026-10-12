@@ -105,7 +105,7 @@ function dealCard(d, { broker = false, saved = null } = {}) {
     ${d.my_commission ? `<div class="small"><b>Your commission (${d.my_commission.pct}%): ~${money(d.my_commission.amount)}</b> <span class="muted">if it sells at market value</span></div>` : ''}
     ${d.landed ? `<div class="landed small"><b>Delivered to ${esc(d.landed.to)}: ~${money(d.landed.delivered)}</b> <span class="muted">(${d.landed.premium_pct}% premium ${money(d.landed.premium)} + freight est. ${money(d.landed.freight)}, ${d.landed.miles.toLocaleString()} mi${d.landed.precision === 'rough' ? ', rough' : ''})</span></div>` : ''}
     ${(d.buyer_landed && d.buyer_landed.length) ? `<div class="landed small"><b>Delivered to your buyers</b>${d.buyer_landed.map(b => `<br>${esc(b.company)} (${esc(b.to)}): <b>~${money(b.delivered)}</b> <span class="muted">freight est. ${money(b.freight)}, ${b.miles.toLocaleString()} mi${b.precision === 'rough' ? ', rough' : ''}</span>`).join('')}</div>` : ''}
-    <div class="meta">${saleTag}<span>${esc(where)}</span>${d.year ? `<span>${d.year}</span>` : ''}${d.hours ? `<span>${Number(d.hours).toLocaleString()} hrs</span>` : ''}<span>${esc(srcName(d.source))}</span></div>
+    <div class="meta">${saleTag}<span>${esc(where)}</span>${d.year ? `<span>${d.year}</span>` : ''}${d.hours ? `<span>${Number(d.hours).toLocaleString()} hrs</span>` : ''}<span>${esc(srcName(d.source))}${d.also_on && d.also_on.length ? ' · also on ' + d.also_on.map(srcName).map(esc).join(', ') : ''}</span></div>
     <div class="actions">${actions}</div>
   </div>`;
 }

@@ -113,8 +113,9 @@ router.get('/deals', async (req, res, next) => {
       FROM deals d JOIN listings l ON l.id = d.listing_id JOIN products p ON p.id = d.product_id
       LEFT JOIN saved_deals sd ON sd.deal_id = d.id AND sd.user_id = $1
       WHERE ${matchSql(f, params, u)} ORDER BY d.deal_score DESC LIMIT 300`, params);
-    await require('../lib/orgs').attachClaims(r.rows, req.user);
-    res.json({ count: r.rows.length, deals: require('../lib/landed').attachLanded(r.rows, u) });
+    const rows = require('../lib/dedupe').dedupe(r.rows);
+    await require('../lib/orgs').attachClaims(rows, req.user);
+    res.json({ count: rows.length, deals: require('../lib/landed').attachLanded(rows, u) });
   } catch (e) { next(e); }
 });
 

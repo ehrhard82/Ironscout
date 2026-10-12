@@ -58,8 +58,9 @@ router.get('/', async (req, res, next) => {
                  ORDER BY ${order} LIMIT $${params.length}`;
     const r = await pool.query(sql, params);
     const u = (await pool.query('SELECT yard_city, yard_state, commission_percent FROM users WHERE id = $1', [req.user.id])).rows[0] || {};
-    await attachClaims(r.rows, req.user);
-    res.json({ count: r.rows.length, deals: attachLanded(r.rows, u) });
+    const rows = require('../lib/dedupe').dedupe(r.rows);
+    await attachClaims(rows, req.user);
+    res.json({ count: rows.length, deals: attachLanded(rows, u) });
   } catch (e) { next(e); }
 });
 

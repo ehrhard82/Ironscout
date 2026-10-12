@@ -59,7 +59,7 @@ router.get('/machine', async (req, res, next) => {
       WHERE l.product_id = $1 AND l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW())
         AND NOT (${JUNK_SQL}) AND NOT (${ATTACH_SQL}) AND l.id NOT IN ${blockedSql(req.user)}
       ORDER BY l.price ASC LIMIT 600`, [pid]);
-    const listings = r.rows.map(l => {
+    const listings = require('../lib/dedupe').dedupe(r.rows, (a, b) => (b.deal_score || 0) - (a.deal_score || 0)).map(l => {
       const ref = l.deal_market || normal;
       return { ...l, normal: ref, vs_normal_pct: ref ? Math.round(((l.price - ref) / ref) * 100) : null, is_deal: l.deal_market !== null };
     });

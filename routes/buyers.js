@@ -119,6 +119,7 @@ router.get('/:id/matches', mine, async (req, res, next) => {
           AND (bw.states IS NULL OR cardinality(bw.states) = 0 OR l.state = ANY(bw.states))
           AND (bw.min_year IS NULL OR l.year IS NULL OR l.year >= bw.min_year))
       ORDER BY d.deal_score DESC LIMIT 100`, [req.params.id]);
+    r.rows = require('../lib/dedupe').dedupe(r.rows);
     await attachClaims(r.rows, req.user);
     res.json({ count: r.rows.length, deals: require('../lib/landed').attachLanded(r.rows, {}) });
   } catch (e) { next(e); }

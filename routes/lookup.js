@@ -56,6 +56,7 @@ router.get('/', requireAccess, async (req, res, next) => {
     ]);
     const us = market.rows.find(r => r.region_type === 'country');
     const qs = require('../lib/ingestQueue').status();
+    deals.rows = require('../lib/dedupe').dedupe(deals.rows);
     await attachClaims(deals.rows, req.user);
     res.json({
       tracked: true, query: q, product, other_matches: p.rows.slice(1),
