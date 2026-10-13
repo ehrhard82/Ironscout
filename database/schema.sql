@@ -297,6 +297,13 @@ CREATE TABLE IF NOT EXISTS deal_claims (
   PRIMARY KEY (listing_id, org_id)
 );
 
+-- Small key/value store for app state that must survive restarts (e.g. last scheduled refresh)
+CREATE TABLE IF NOT EXISTS app_state (
+  key   VARCHAR(60) PRIMARY KEY,
+  value TEXT,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Subscribers' own saved deals (independent of the broker claim workflow)
 CREATE TABLE IF NOT EXISTS saved_deals (
   user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

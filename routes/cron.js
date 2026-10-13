@@ -25,26 +25,51 @@ router.use((req, res, next) => {
 
 // A full refresh costs real money (Apify), so even if a scheduler calls this every few
 // minutes by mistake it only runs once per INGEST_MIN_HOURS. Add &force=1 to override.
-let lastIngestAt = 0;
+// The "last run" time lives in the database so a restart (redeploy, free-tier spin-down)
+// doesn't forget it.
+const pool = require('../lib/db');
+async function lastScheduledIngest() {
+  const r = await pool.query(`SELECT value FROM app_state WHERE key = 'last_ingest_at'`).catch(() => ({ rows: [] }));
+  return r.rows[0] ? new Date(r.rows[0].value).getTime() : 0;
+}
+async function runScheduledIngest(reason) {
+  await pool.query(`INSERT INTO app_state (key, value, updated_at) VALUES ('last_ingest_at', $1, NOW())
+                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`, [new Date().toISOString()]);
+  const terms = await scheduledTerms();
+  for (const t of terms) ingestQueue.enqueue(t);          // one at a time, after anything already running
+  deactivateStale(14).catch(() => {});
+  console.log(`[cron] daily refresh started (${reason}): ${terms.length} machine(s)`);
+  return terms;
+}
 router.get('/ingest', async (req, res) => {
   try {
     const minHours = Number(process.env.INGEST_MIN_HOURS || 20);
-    const since = (Date.now() - lastIngestAt) / 3600000;
-    if (lastIngestAt && since < minHours && req.query.force !== '1') {
+    const since = (Date.now() - await lastScheduledIngest()) / 3600000;
+    if (since < minHours && req.query.force !== '1') {
       return res.json({ started: false, reason: `already refreshed ${since.toFixed(1)}h ago; runs at most every ${minHours}h (add &force=1 to override)` });
     }
-    lastIngestAt = Date.now();
-    const terms = await scheduledTerms();
-    for (const t of terms) ingestQueue.enqueue(t);          // one at a time, after anything already running
-    deactivateStale(14).catch(() => {});
+    const terms = await runScheduledIngest(req.query.force === '1' ? 'forced' : 'scheduled');
     res.json({ started: true, machines: terms, ...ingestQueue.status() });
   } catch (e) { res.status(500).json({ started: false, error: e.message }); }
 });
+
+// Safety net: the alerts job hits every 15 minutes. If the 6am refresh never arrived
+// (sleeping host, timeout, missed cron), start it from here once the day's window has opened.
+async function catchUpIngest() {
+  const tz = process.env.BUDGET_TZ || 'America/New_York';
+  const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(new Date()));
+  const startHour = Number(process.env.INGEST_HOUR || 6);
+  if (hour < startHour) return;
+  const minHours = Number(process.env.INGEST_MIN_HOURS || 20);
+  if ((Date.now() - await lastScheduledIngest()) / 3600000 < minHours) return;
+  await runScheduledIngest('catch-up from alerts job');
+}
 
 router.get('/alerts', (req, res) => {
   res.json({ started: true });
   sendDigests().then(s => s.sent && console.log(`[cron] alerts: ${s.sent} sent`)).catch(e => console.error('cron alerts failed:', e));
   purgeExpiredSessions().catch(() => {});
+  catchUpIngest().catch(e => console.error('catch-up ingest failed:', e.message));
 });
 
 router.get('/ping', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
