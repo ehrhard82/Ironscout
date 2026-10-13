@@ -13,6 +13,7 @@ const { buyersSql } = require('../lib/buyers');
 const { DEAL_COLS } = require('./watchlists');
 const { blockedSql, notPassedSql, attachClaims } = require('../lib/orgs');
 
+const CITY = (c) => c ? String(c).trim().replace(/\s+/g, ' ').slice(0, 100) : null;
 const STATE = (s) => String(s || '').trim().toUpperCase().slice(0, 2) || null;
 const STATES = (v) => (Array.isArray(v) ? v : String(v || '').split(/[,\s]+/)).map(STATE).filter(Boolean);
 const num = (v) => (v === '' || v === null || v === undefined ? null : Number(v));
@@ -29,7 +30,7 @@ async function addWant(buyerId, w) {
   if (!pid) return null;
   const r = await pool.query(
     `INSERT INTO buyer_wants (buyer_id, product_id, max_price, states, min_year, notes, deliver_city, deliver_state) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-    [buyerId, pid, num(w.max_price), STATES(w.states), num(w.min_year), w.notes || null, w.deliver_city || null, STATE(w.deliver_state)]);
+    [buyerId, pid, num(w.max_price), STATES(w.states), num(w.min_year), w.notes || null, CITY(w.deliver_city), STATE(w.deliver_state)]);
   return r.rows[0].id;
 }
 
@@ -68,8 +69,8 @@ router.post('/', async (req, res, next) => {
     const r = await pool.query(
       `INSERT INTO buyers (company, contact_name, phone, email, city, state, notes, status, source, owner_user_id, deliver_city, deliver_state)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'manual',$9,$10,$11) RETURNING id`,
-      [b.company.trim(), b.contact_name || null, b.phone || null, b.email || null, b.city || null, STATE(b.state), b.notes || null,
-       b.status === 'prospect' ? 'prospect' : 'customer', req.user.id, b.deliver_city || null, STATE(b.deliver_state)]);
+      [b.company.trim(), b.contact_name || null, b.phone || null, b.email || null, CITY(b.city), STATE(b.state), b.notes || null,
+       b.status === 'prospect' ? 'prospect' : 'customer', req.user.id, CITY(b.deliver_city), STATE(b.deliver_state)]);
     const id = r.rows[0].id;
     for (const w of (Array.isArray(b.wants) ? b.wants : [])) await addWant(id, w);
     res.status(201).json({ buyer: (await list('b.id = $1 AND b.owner_user_id = $2', [id, req.user.id]))[0] });
@@ -85,9 +86,9 @@ router.patch('/:id', mine, async (req, res, next) => {
          status = COALESCE($9, status), active = COALESCE($10, active),
          deliver_city = COALESCE($11, deliver_city), deliver_state = CASE WHEN $12 = '-' THEN NULL ELSE COALESCE($12, deliver_state) END, updated_at = NOW()
        WHERE id = $1 RETURNING id`,
-      [req.params.id, b.company || null, b.contact_name ?? null, b.phone ?? null, b.email ?? null, b.city ?? null,
+      [req.params.id, b.company || null, b.contact_name ?? null, b.phone ?? null, b.email ?? null, b.city === undefined ? null : CITY(b.city),
        b.state === '' ? '-' : b.state ? STATE(b.state) : null, b.notes ?? null, b.status || null, typeof b.active === 'boolean' ? b.active : null,
-       b.deliver_city ?? null, b.deliver_state === '' ? '-' : b.deliver_state ? STATE(b.deliver_state) : null]);
+       b.deliver_city === undefined ? null : CITY(b.deliver_city), b.deliver_state === '' ? '-' : b.deliver_state ? STATE(b.deliver_state) : null]);
     if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
     res.json({ buyer: (await list('b.id = $1 AND b.owner_user_id = $2', [req.params.id, req.user.id]))[0] });
   } catch (e) { next(e); }
