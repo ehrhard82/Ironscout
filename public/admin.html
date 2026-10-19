@@ -35,6 +35,11 @@ winch truck,2016 Peterbilt 367 winch truck,98500,2026-09-02,2016,210000,Odessa,T
     <table id="users"><thead><tr><th>Email</th><th>Role</th><th>Company</th><th>Subscription</th><th>Machines</th><th>Last login</th><th></th></tr></thead><tbody></tbody></table>
   </div></div>
 
+  <div class="section"><h2>What people are doing</h2><div class="card">
+    <div class="row" style="margin-bottom:8px"><select id="act-who"><option value="">everyone</option></select><span class="muted small">Logins, lookups, buyers added, claims. Newest first.</span></div>
+    <div id="activity" class="small"></div>
+  </div></div>
+
   <div class="section"><h2>Email</h2><div class="card"><div class="row"><button id="mail-btn">Send me a test email</button><span id="mail-msg" class="small"></span></div></div></div>
 
   <div class="section"><h2>Recent ingest runs</h2><div class="card">
@@ -50,7 +55,7 @@ async function load() {
   const user = await requireUser();
   if (user.role !== 'admin') { location.href = '/'; return; }
   $('hdr').innerHTML = renderHeader(user, '/admin.html'); wireLogout();
-  const [prods, reqs, users, runs, orgs] = await Promise.all([api('/api/products'), api('/api/admin/requests'), api('/api/admin/users'), api('/api/admin/runs'), api('/api/admin/orgs')]);
+  const [prods, reqs, users, runs, orgs, activity] = await Promise.all([api('/api/products'), api('/api/admin/requests'), api('/api/admin/users'), api('/api/admin/runs'), api('/api/admin/orgs'), api('/api/admin/activity')]);
   $('products').innerHTML = prods.products.map(p => `<option value="${esc(p.name)}">`).join('');
   $('requests').querySelector('tbody').innerHTML = reqs.requests.map(r => `<tr><td>${esc(r.term)}</td><td>${esc(r.email || '—')}</td><td>${new Date(r.created_at).toLocaleDateString()}</td><td>${r.status}</td>
     <td>${r.status === 'pending' ? `<button onclick="act('/api/admin/requests/${r.id}/approve')">Approve & fetch</button> <button onclick="act('/api/admin/requests/${r.id}/reject')">Reject</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">None</td></tr>';
@@ -78,6 +83,9 @@ async function load() {
   $('orgs').onchange = async (ev) => { const m = ev.target.closest('[data-moveuser]'); if (m && m.value) { try { await api('/api/admin/users/' + m.dataset.moveuser, { method: 'PATCH', body: { org_id: m.value } }); openOrg = m.closest('[id^=oe-]').id.slice(3); load(); } catch (err) { alert(err.message); } } };
   if (openOrg) { const box = document.getElementById('oe-' + openOrg); if (box) box.hidden = false; openOrg = null; }
   $('nu-org').innerHTML = '<option value="">new company for this person</option>' + orgs.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
+  window.allActivity = activity;
+  $('act-who').innerHTML = '<option value="">everyone</option>' + [...new Set(activity.map(a => a.email))].map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join('');
+  $('act-who').onchange = renderActivity; renderActivity();
   $('host').textContent = location.host;
   api('/version').then(v => { $('host').textContent = location.host + ' · build ' + v.build; }).catch(() => {});
   $('sources').textContent = (runs.sources || []).join(', ');
@@ -99,6 +107,10 @@ document.addEventListener('click', async (ev) => {
     try { await api('/api/admin/users/' + id, { method: 'PATCH', body }); load(); } catch (err) { alert(err.message); }
   }
 });
+function renderActivity() {
+  const who = $('act-who').value, rows = (window.allActivity || []).filter(a => !who || a.email === who).slice(0, 80);
+  $('activity').innerHTML = rows.length ? rows.map(a => `<div style="padding:5px 0;border-bottom:1px solid var(--line)"><span class="muted">${new Date(a.at).toLocaleString(undefined, { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span> <b>${esc(a.name || a.email.split('@')[0])}</b> ${esc(a.action)}${a.detail ? `: <span class="muted">${esc(a.detail)}</span>` : ''}</div>`).join('') : '<div class="muted">Nothing yet.</div>';
+}
 async function patchUser(id, body) { try { await api('/api/admin/users/' + id, { method: 'PATCH', body }); load(); } catch (e) { alert(e.message); } }
 $('ingest-btn').onclick = async () => { const t = $('ingest-term').value.trim(); if (!t) return; try { await api('/api/admin/ingest', { method: 'POST', body: { product: t } }); $('ingest-msg').textContent = `Fetching "${t}"… check runs in a minute.`; } catch (e) { alert(e.message); } };
 $('refresh-btn').onclick = () => load();

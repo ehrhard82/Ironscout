@@ -15,6 +15,7 @@ const { blockedSql, EFFECTIVE_STATUS_SQL, CLAIM_HOURS } = require('../lib/orgs')
 const isAdmin = (u) => u.role === 'admin';
 
 async function logAction(dealId, req, action, notes) {
+  try { const t = (await pool.query('SELECT l.title FROM deals d JOIN listings l ON l.id = d.listing_id WHERE d.id = $1', [dealId])).rows[0]; require('../lib/activity').log(req.user, action + ' deal', t && t.title); } catch {}
   await pool.query('INSERT INTO broker_interactions (deal_id, broker_id, action, notes, org_id) VALUES ($1,$2,$3,$4,$5)',
     [dealId, req.user.email, action, notes || null, req.user.org_id || null]);
 }
@@ -30,6 +31,7 @@ router.post('/listings/:id/block', curators, async (req, res, next) => {
     const l = (await pool.query('SELECT product_id FROM listings WHERE id = $1', [id])).rows[0];
     if (!l) return res.status(404).json({ error: 'not found' });
     await pool.query('INSERT INTO listing_blocks (listing_id, blocked_by, org_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING', [id, req.user.id, isAdmin(req.user) ? null : req.user.org_id]);
+    require('../lib/activity').log(req.user, 'hid listing', id);
     if (isAdmin(req.user)) require('../lib/pricing').recalculateProduct(l.product_id).catch(e => console.error('recalc after block failed:', e.message));
     res.json({ ok: true });
   } catch (e) { next(e); }

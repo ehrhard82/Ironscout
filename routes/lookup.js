@@ -33,6 +33,7 @@ router.get('/', requireAccess, async (req, res, next) => {
                         message: `We don't track "${q}" yet. Request it and we'll add it if we can source listings.` });
     }
     const product = p.rows[0];
+    require('../lib/activity').log(req.user, 'looked up', product.name);
     const u = (await pool.query('SELECT * FROM users WHERE id = $1', [req.user.id])).rows[0];
     const ignoreSettings = req.query.all === '1';
     const f = ignoreSettings ? { product_id: product.id } : effective(u, { product_id: product.id });

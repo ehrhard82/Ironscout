@@ -73,6 +73,7 @@ router.post('/', async (req, res, next) => {
        b.status === 'prospect' ? 'prospect' : 'customer', req.user.id, CITY(b.deliver_city), STATE(b.deliver_state)]);
     const id = r.rows[0].id;
     for (const w of (Array.isArray(b.wants) ? b.wants : [])) await addWant(id, w);
+    require('../lib/activity').log(req.user, 'added buyer', b.company);
     res.status(201).json({ buyer: (await list('b.id = $1 AND b.owner_user_id = $2', [id, req.user.id]))[0] });
   } catch (e) { next(e); }
 });

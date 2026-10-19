@@ -71,6 +71,7 @@ router.put('/', requireLogin, async (req, res, next) => {
        b.yard_city ? String(b.yard_city).trim().slice(0, 100) : null,
        b.yard_state ? String(b.yard_state).trim().toUpperCase().slice(0, 2) : null,
        b.commission_percent !== undefined, b.commission_percent === '' || b.commission_percent === null ? null : Math.max(0, Math.min(100, Number(b.commission_percent) || 0))]);
+    require('../lib/activity').log(req.user, 'saved settings', [r.rows[0].yard_city, r.rows[0].yard_state].filter(Boolean).join(', ') || null);
     res.json(r.rows[0]);
   } catch (e) { next(e); }
 });

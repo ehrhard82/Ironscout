@@ -81,6 +81,7 @@ router.post('/', async (req, res, next) => {
     const n = await pool.query('SELECT COUNT(*)::int AS n FROM watchlists WHERE user_id = $1', [req.user.id]);
     if (n.rows[0].n >= limit) return res.status(400).json({ error: `You can watch up to ${limit} machines` });
     await pool.query(`INSERT INTO watchlists (user_id, product_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [req.user.id, pid]);
+    require('../lib/activity').log(req.user, 'watching', String(pid));
     res.status(201).json({ ok: true });
   } catch (e) { next(e); }
 });

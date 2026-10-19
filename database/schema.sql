@@ -304,6 +304,16 @@ CREATE TABLE IF NOT EXISTS app_state (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Who did what (for the owner to see how accounts are used)
+CREATE TABLE IF NOT EXISTS activity (
+  id      SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  action  VARCHAR(40) NOT NULL,
+  detail  VARCHAR(200),
+  at      TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_activity_at ON activity(at DESC);
+
 -- Subscribers' own saved deals (independent of the broker claim workflow)
 CREATE TABLE IF NOT EXISTS saved_deals (
   user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -46,6 +46,7 @@ router.post('/login', auth.rateLimitLogin, async (req, res, next) => {
       return res.status(401).json({ error: 'Email or password is incorrect' });
     }
     await auth.createSession(res, u.id);
+    require('../lib/activity').log(u, 'logged in', req.headers['user-agent'] ? String(req.headers['user-agent']).slice(0, 80) : null);
     delete u.password_hash;
     res.json({ ...u, has_access: auth.hasAccess(u) });
   } catch (e) { next(e); }

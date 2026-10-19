@@ -231,6 +231,15 @@ router.post('/import-sales', express.text({ type: '*/*', limit: '5mb' }), async 
   } catch (e) { next(e); }
 });
 
+// GET /api/admin/activity   who did what, newest first
+router.get('/activity', async (req, res, next) => {
+  try {
+    const r = await pool.query(`SELECT a.at, a.action, a.detail, u.email, u.name, (SELECT name FROM organizations o WHERE o.id = u.org_id) AS org
+                                FROM activity a JOIN users u ON u.id = a.user_id ORDER BY a.at DESC LIMIT 200`);
+    res.json(r.rows);
+  } catch (e) { next(e); }
+});
+
 // POST /api/admin/test-email   sends a test message to the admin's own address
 router.post('/test-email', async (req, res) => {
   try {
