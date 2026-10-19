@@ -25,7 +25,9 @@ router.get('/', requireLogin, async (req, res, next) => {
               alert_min_discount AS min_discount, alert_min_margin AS min_margin, alert_max_price AS max_price,
               alert_min_year AS min_year, last_digest_at, yard_city, yard_state, commission_percent::float AS commission_percent
        FROM users WHERE id = $1`, [req.user.id]);
-    res.json({ ...r.rows[0], channels: CHANNELS, frequencies: FREQS,
+    const from = process.env.MAIL_FROM || '';
+    const limited = !process.env.RESEND_API_KEY || /resend\.dev/i.test(from);
+    res.json({ ...r.rows[0], channels: CHANNELS, frequencies: FREQS, email_delivery: limited ? 'limited' : 'ok',
                sms_available: Boolean(process.env.TWILIO_ACCOUNT_SID) });
   } catch (e) { next(e); }
 });

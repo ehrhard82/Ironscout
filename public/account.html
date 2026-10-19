@@ -118,7 +118,8 @@ async function load() {
   $('max_price').value = s.max_price || ''; $('min_year').value = s.min_year || ''; $('phone').value = s.phone || '';
   $('commission_percent').value = s.commission_percent ?? ''; $('yard_city').value = s.yard_city || ''; $('yard_state').value = s.yard_state || '';
   setRadio('channel', s.channel || 'email'); setRadio('frequency', s.frequency || 'daily');
-  $('sms-note').textContent = s.sms_available ? 'Texts show the top 3 deals and a link; email has the full list.' : 'Texting isn\'t switched on for this server yet — email works now, texts will start when it is.';
+  $('sms-note').innerHTML = (s.email_delivery === 'limited' && user.role !== 'admin' ? '<span style="color:var(--accent)">Email alerts are being switched on for your company. Your settings are saved; the first email will include everything you\'ve missed.</span><br>' : '')
+    + (s.sms_available ? 'Texts show the top 3 deals and a link; email has the full list.' : 'Texting isn\'t switched on yet — email first, texts later.');
 
   if (user.has_access) {
     const [prods, wl] = await Promise.all([api('/api/products'), api('/api/watchlists')]);
