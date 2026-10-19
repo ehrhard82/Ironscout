@@ -15,7 +15,8 @@
   .heading { max-width:900px; margin:26px auto 0; padding:0 20px; display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; }
   .heading h3 { margin:0; font-size:18px; } .heading .small a { color:var(--muted); }
   main { max-width:1200px; margin:0 auto; }
-  .sortrow { display:flex; gap:8px; flex-wrap:nowrap; align-items:center; }
+  .sortrow { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .sortrow .viewtoggle { flex:0 0 auto; }
   .sortrow label { display:flex; align-items:center; gap:6px; min-width:0; flex:1 1 0; }
   .sortrow select { min-width:0; width:100%; padding:8px 8px; font-size:14px; }
   .setup { max-width:760px; margin:0 auto 10px; padding:0 20px; }
@@ -28,6 +29,9 @@
   .setup .done span.t { color:var(--muted); text-decoration:line-through; }
   .setup .step small { color:var(--muted); display:block; }
   .setup .dismiss { margin-left:auto; color:var(--muted); font-size:13px; background:none; border:0; min-height:0; padding:0; }
+  .welcome { background:linear-gradient(135deg,#2a2410,#181b22); border:1px solid var(--accent); border-radius:12px; padding:16px; }
+  .welcome h3 { margin:0 0 6px; font-size:18px; } .welcome p { margin:0 0 6px; line-height:1.5; } .welcome p:last-of-type { margin-bottom:0; }
+  .listhead { display:flex; align-items:center; gap:10px; margin:6px 0 10px; } .listhead h2 { margin:0; flex:1; }
 </style></head><body>
 <header id="hdr"></header>
 <div class="hero">
@@ -36,6 +40,7 @@
   <form class="big" id="f"><input id="q" placeholder="wheel loader, winch truck, excavator…" list="products" autofocus autocomplete="off"><datalist id="products"></datalist><button class="primary" type="submit">Look it up</button></form>
   <div class="chips" id="chips"></div>
 </div>
+<div class="setup" id="welcome"></div>
 <div class="setup" id="setup"></div>
 <div id="result"></div>
 <main><div id="list" class="grid"></div></main>
@@ -56,8 +61,31 @@ async function init() {
   $('chips').innerHTML = [...mine.map(m => `<button onclick="go('${esc(m)}')" title="On your watchlist">★ ${esc(m)}</button>`), ...popular.map(m => `<button onclick="go('${esc(m)}')">${esc(m)}</button>`)].join('')
     + (mine.length ? `<button onclick="location.href='/mine.html'" style="border-color:var(--accent);color:var(--accent)">All my machines' deals →</button>` : '');
   if (qs.get('q')) go(qs.get('q')); else feed();
+  showWelcome();
   showSetup(wl.watchlists.length).catch(() => {});
 }
+
+// One-time hello on first visit.
+function showWelcome() {
+  let seen = false; try { seen = localStorage.getItem('welcomed') === '1'; } catch {}
+  if (seen) return;
+  const first = (user.name || user.email.split('@')[0]).split(' ')[0];
+  const staff = ['admin', 'broker', 'agent'].includes(user.role);
+  $('welcome').innerHTML = `<div class="welcome"><div class="row" style="justify-content:space-between;align-items:flex-start"><h3>Welcome, ${esc(first)}.</h3><button class="dismiss" onclick="try{localStorage.setItem('welcomed','1')}catch(e){};document.getElementById('welcome').innerHTML=''">got it</button></div>
+    <p>Every morning IronScout pulls the auction and dealer sites, works out what each machine is really worth, and flags the ones priced under that. The cards below are today's best.</p>
+    <p>Type any machine up top to see its value and everything listed. ${staff ? 'Put your buyers in on the <a href="/broker.html#buyers">Broker board</a> and the deals that fit them come first, with the price delivered to their yard.' : 'Tap <b>Watch</b> on a machine to get alerted when a new one shows up under market.'}</p>
+    <p class="small muted">Something look wrong? Tap <b>Share</b> on the card and send it to Mikey. <a href="/help.html">How it works</a> has the details.</p></div>`;
+}
+
+// Compact (tap to open) vs full cards. Phones start compact.
+let viewMode = 'full';
+try { viewMode = localStorage.getItem('view') || (window.innerWidth < 700 ? 'compact' : 'full'); } catch { viewMode = window.innerWidth < 700 ? 'compact' : 'full'; }
+function setView(m) { viewMode = m; try { localStorage.setItem('view', m); } catch {} applyView(); }
+function applyView() {
+  $('list').classList.toggle('compact', viewMode === 'compact');
+  document.querySelectorAll('.viewtoggle button').forEach(b => b.classList.toggle('on', b.dataset.v === viewMode));
+}
+const viewToggle = () => `<div class="viewtoggle"><button data-v="compact" onclick="setView('compact')">Compact</button><button data-v="full" onclick="setView('full')">Full</button></div>`;
 
 // First-run checklist: the three things that make the site useful. Goes away once they're done (or dismissed).
 async function showSetup(watchCount) {
@@ -86,8 +114,9 @@ async function feed() {
     const deals = r.deals || [];
     savedIds = new Set();
     $('list').innerHTML = deals.length
-      ? '<h2 style="margin:6px 0 10px">Best deals right now</h2>' + deals.map(d => dealCard(d, { saved: false })).join('')
+      ? `<div class="listhead"><h2>Best deals right now</h2>${viewToggle()}</div>` + deals.map(d => dealCard(d, { saved: false })).join('')
       : '<div class="empty">No deals yet. Search a machine above to get started.</div>';
+    applyView();
   } catch (e) { $('list').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
@@ -128,7 +157,7 @@ async function go(q, opts = {}) {
     <div class="heading">
       <h3>${esc(r.product.name)} — ${r.count} deal${r.count === 1 ? '' : 's'} ${r.filters_applied ? 'matching your settings' : '(all deals, settings ignored)'}</h3>
       <div class="small sortrow"><label class="muted">Sort <select id="sort" onchange="sortBy=this.value;renderDeals()"><option value="score">best first</option><option value="ending">ending soonest</option><option value="margin">biggest profit</option><option value="price">cheapest</option><option value="newest">newest</option></select></label>
-        <label class="muted">Show <select id="kind" onchange="kindFilter=this.value;renderDeals()"><option value="all">everything</option><option value="listing">buy now only</option><option value="auction">auctions only</option></select></label></div>
+        <label class="muted">Show <select id="kind" onchange="kindFilter=this.value;renderDeals()"><option value="all">everything</option><option value="listing">buy now only</option><option value="auction">auctions only</option></select></label>${viewToggle()}</div>
       <div class="small">
         ${r.filters_applied ? `<a href="#" onclick="showAll=true;go(current);return false">Show all ${r.all_deals} deals</a>` : `<a href="#" onclick="showAll=false;go(current);return false">Apply my settings</a>`}
         &nbsp;·&nbsp; <a href="/listings.html?m=${encodeURIComponent(r.product.name)}"><b>See every live listing</b></a> &nbsp;·&nbsp; <a href="/account.html">Change settings</a>${r.yard ? '' : ' &nbsp;·&nbsp; <a href="/account.html#yard">Set my yard for delivered prices</a>'}
@@ -141,6 +170,7 @@ async function go(q, opts = {}) {
   if (keep) window.scrollTo(0, y);       // quiet refresh: stay where you were
 }
 let lastResult = null, sortBy = 'score', kindFilter = 'all';
+function applyViewSoon() { setTimeout(applyView, 0); }
 function renderDeals() {
   const r = lastResult; if (!r) return;
   const far = 8.64e15;
@@ -152,6 +182,7 @@ function renderDeals() {
     newest: (a, b) => new Date(b.flagged_at) - new Date(a.flagged_at),
   };
   const deals = [...r.deals].filter(d => kindFilter === 'all' || (kindFilter === 'auction' ? d.sale_type === 'auction' : d.sale_type !== 'auction')).sort(sorters[sortBy] || sorters.score);
+  applyViewSoon();
   $('list').innerHTML = deals.length ? deals.map(d => dealCard(d, { saved: d.saved })).join('')
     : `<div class="empty">Nothing under market right now${r.filters_applied ? ' that clears your settings' : ''}${kindFilter !== 'all' ? ` (${kindFilter === 'auction' ? 'auctions' : 'buy-now listings'} only)` : ''}.<br>${r.watched ? 'You\'ll be alerted when one shows up.' : `<button class="primary" style="margin-top:12px" onclick="watch(${r.product.id})">★ Watch this machine and alert me</button>`}</div>`;
 }

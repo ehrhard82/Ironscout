@@ -65,6 +65,17 @@ table { white-space:nowrap; }
 .tag.hot { background:#3a1f1f; color:#ffb4b4; }
 .card.verify { border-style:dashed; opacity:.85; }
 .card.claimed-other { border-style:dashed; opacity:.7; }
+/* compact cards: the essentials only, tap to open */
+.card .more { display:none; }
+.grid.compact .card:not(.open) .x, .grid.compact .card:not(.open) .photo { display:none; }
+.grid.compact .card:not(.open) { gap:4px; padding:12px 14px; cursor:pointer; }
+.grid.compact .card:not(.open) .title { font-size:14px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.grid.compact .card:not(.open) .price { font-size:18px; }
+.grid.compact .card:not(.open) .save { font-size:14px; }
+.grid.compact .card:not(.open) .more { display:block; text-align:right; font-size:12px; }
+.grid.compact .card.open { cursor:default; }
+.viewtoggle { display:flex; gap:0; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+.viewtoggle button { border:0; border-radius:0; min-height:32px; padding:4px 12px; font-size:13px; background:transparent; } .viewtoggle button.on { background:var(--accent); color:#1a1200; }
 
 .buyers { background:#2a2410; border:1px solid var(--accent); color:#ffd98a; border-radius:8px; padding:8px 10px; font-size:14px; }
 .buyers a { color:#ffd98a; }

@@ -88,10 +88,12 @@ function dealCard(d, { broker = false, saved = null } = {}) {
     if (d.url) actions += `<a href="${esc(d.url)}" target="_blank" rel="noopener" style="flex:1"><button class="primary" style="width:100%">View listing</button></a>`;
   }
   if (broker && d.url) actions += `<a href="${esc(d.url)}" target="_blank" rel="noopener" style="flex:1"><button style="width:100%">View</button></a>`;
+  actions += `<button onclick="shareDeal(${d.id})" title="Send this deal to someone">Share</button>`;
   actions += blockBtn(d.listing_id);
+  window.dealsById = window.dealsById || {}; window.dealsById[d.id] = d;
   const claimed = d.commission_status === 'claimed' && d.claim;
   const claimLine = claimed ? `<div class="buyers">${d.claim.by_me ? '✅ <b>You claimed this</b>' : `⏳ <b>Claimed by ${esc(d.claim.by)}</b>`}${d.claimed_buyer ? ` for ${esc(d.claimed_buyer.company)}` : ' for a buyer'} · ${ago(d.claim.at)}${d.claim.expires_at ? ` · holds ${untilWhen(d.claim.expires_at)}` : ''}${d.claim.by_me ? '' : ' — better hurry!'}</div>` : '';
-  return `<div class="card status-${d.commission_status || 'open'} ${verify ? 'verify' : ''} ${claimed && !d.claim.by_me ? 'claimed-other' : ''}" id="deal-${d.id}">
+  return `<div class="card status-${d.commission_status || 'open'} ${verify ? 'verify' : ''} ${claimed && !d.claim.by_me ? 'claimed-other' : ''}" id="deal-${d.id}" onclick="cardTap(event,this)">
     ${d.image_url ? `<a class="photo" href="${esc(d.url || '#')}" target="_blank" rel="noopener"><img src="${esc(d.image_url)}" alt="" loading="lazy" onerror="this.parentNode.remove()"></a>` : ''}
     <div class="top">
       <div class="title">${d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.title)}</a>` : esc(d.title)}</div>
@@ -101,13 +103,32 @@ function dealCard(d, { broker = false, saved = null } = {}) {
     ${claimLine}
     ${buyerLine}
     <div class="save">${why}</div>
-    <div class="small muted">${Math.round(d.discount_percent)}% below ${esc(d.compared_to)}</div>
-    ${d.my_commission ? `<div class="small"><b>Your commission (${d.my_commission.pct}%): ~${money(d.my_commission.amount)}</b> <span class="muted">on the ${money(d.price)} price</span></div>` : ''}
-    ${d.landed ? `<div class="landed small"><b>Delivered to ${esc(d.landed.to)}: ~${money(d.landed.delivered)}</b> <span class="muted">(${d.landed.premium_pct}% premium ${money(d.landed.premium)} + freight est. ${money(d.landed.freight)}, ${d.landed.miles.toLocaleString()} mi${d.landed.precision === 'rough' ? ', rough' : ''})</span></div>` : ''}
-    ${(d.buyer_landed && d.buyer_landed.length) ? `<div class="landed small"><b>Delivered to your buyers</b>${d.buyer_landed.map(b => `<br>${esc(b.company)} (${esc(b.to)}): <b>~${money(b.delivered)}</b> <span class="muted">freight est. ${money(b.freight)}, ${b.miles.toLocaleString()} mi${b.precision === 'rough' ? ', rough' : ''}</span>`).join('')}</div>` : ''}
-    <div class="meta">${saleTag}<span>${esc(where)}</span>${d.year ? `<span>${d.year}</span>` : ''}${d.hours ? `<span>${Number(d.hours).toLocaleString()} hrs</span>` : ''}<span>${esc(srcName(d.source))}${d.also_on && d.also_on.length ? ' · also on ' + d.also_on.map(srcName).map(esc).join(', ') : ''}</span></div>
-    <div class="actions">${actions}</div>
+    <div class="small muted x">${Math.round(d.discount_percent)}% below ${esc(d.compared_to)}</div>
+    ${d.my_commission ? `<div class="small x"><b>Your commission (${d.my_commission.pct}%): ~${money(d.my_commission.amount)}</b> <span class="muted">on the ${money(d.price)} price</span></div>` : ''}
+    ${d.landed ? `<div class="landed small"><b>Delivered to ${esc(d.landed.to)}: ~${money(d.landed.delivered)}</b> <span class="muted x">(${d.landed.premium_pct}% premium ${money(d.landed.premium)} + freight est. ${money(d.landed.freight)}, ${d.landed.miles.toLocaleString()} mi${d.landed.precision === 'rough' ? ', rough' : ''})</span></div>` : ''}
+    ${(d.buyer_landed && d.buyer_landed.length) ? `<div class="landed small x"><b>Delivered to your buyers</b>${d.buyer_landed.map(b => `<br>${esc(b.company)} (${esc(b.to)}): <b>~${money(b.delivered)}</b> <span class="muted">freight est. ${money(b.freight)}, ${b.miles.toLocaleString()} mi${b.precision === 'rough' ? ', rough' : ''}</span>`).join('')}</div>` : ''}
+    <div class="meta x">${saleTag}<span>${esc(where)}</span>${d.year ? `<span>${d.year}</span>` : ''}${d.hours ? `<span>${Number(d.hours).toLocaleString()} hrs</span>` : ''}<span>${esc(srcName(d.source))}${d.also_on && d.also_on.length ? ' · also on ' + d.also_on.map(srcName).map(esc).join(', ') : ''}</span></div>
+    <div class="actions x">${actions}</div>
+    <div class="small muted more">tap for details</div>
   </div>`;
+}
+
+// Compact mode: tapping a card (not a link/button inside it) opens or closes it.
+function cardTap(ev, card) {
+  if (ev.target.closest('a, button, input, select, summary')) return;
+  const grid = card.closest('.grid'); if (!grid || !grid.classList.contains('compact')) return;
+  card.classList.toggle('open');
+}
+
+// Hand a deal to the phone's share sheet (Messages, email, WhatsApp...). Falls back to an SMS draft.
+async function shareDeal(id) {
+  const d = (window.dealsById || {})[id]; if (!d) return;
+  const lines = [`${d.title}`, `${money(d.price)} (similar ones ~${money(d.market_price)})`];
+  if (d.landed) lines.push(`Delivered to ${d.landed.to.replace(/^your yard /, '')}: ~${money(d.landed.delivered)}`);
+  if (d.url) lines.push(d.url);
+  const text = lines.join('\n');
+  if (navigator.share) { try { await navigator.share({ title: d.title, text }); } catch (e) {} return; }
+  location.href = 'sms:?&body=' + encodeURIComponent(text);
 }
 
 // Staff only: hide a wrong match ("dental chair" under swivel) everywhere.
