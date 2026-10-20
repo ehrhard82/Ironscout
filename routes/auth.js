@@ -46,7 +46,9 @@ router.post('/login', auth.rateLimitLogin, async (req, res, next) => {
       return res.status(401).json({ error: 'Email or password is incorrect' });
     }
     await auth.createSession(res, u.id);
-    require('../lib/activity').log(u, 'logged in', req.headers['user-agent'] ? String(req.headers['user-agent']).slice(0, 80) : null);
+    const ua = String(req.headers['user-agent'] || '');
+    const device = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Macintosh/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows PC' : null;
+    require('../lib/activity').log(u, 'logged in', device);
     delete u.password_hash;
     res.json({ ...u, has_access: auth.hasAccess(u) });
   } catch (e) { next(e); }
