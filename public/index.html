@@ -8,7 +8,8 @@
   .big button { flex:0 0 auto; font-size:18px; padding:16px 22px; border-radius:12px; white-space:nowrap; }
   @media (max-width:480px){ .big { flex-direction:column; } .big button { width:100%; } }
   .chips { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:14px; }
-  .chips button { font-size:14px; padding:7px 12px; border-radius:999px; background:#1c2029; }
+  .chips button { font-size:13px; padding:5px 11px; min-height:0; border-radius:999px; background:#1c2029; }
+  .chips #morechips { display:contents; }
   .market { max-width:900px; margin:26px auto 0; padding:0 20px; display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
   .stat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
   .stat .v { font-size:22px; font-weight:700; } .stat .l { color:var(--muted); font-size:13px; }
@@ -58,7 +59,11 @@ async function init() {
   // Quick chips: the user's own machines first, then the most-listed tracked ones
   const mine = wl.watchlists.map(w => w.product);
   const popular = prods.products.filter(p => !mine.includes(p.name)).slice(0, 8 - Math.min(mine.length, 8)).map(p => p.name);
-  $('chips').innerHTML = [...mine.map(m => `<button onclick="go('${esc(m)}')" title="On your watchlist">★ ${esc(m)}</button>`), ...popular.map(m => `<button onclick="go('${esc(m)}')">${esc(m)}</button>`)].join('')
+  const chip = (m, star) => `<button onclick="go('${esc(m)}')"${star ? ' title="On your watchlist"' : ''}>${star ? '★ ' : ''}${esc(m)}</button>`;
+  const all = [...mine.map(m => chip(m, true)), ...popular.map(m => chip(m, false))];
+  const SHOW = 6;
+  $('chips').innerHTML = all.slice(0, SHOW).join('')
+    + (all.length > SHOW ? `<span id="morechips" hidden>${all.slice(SHOW).join('')}</span><button id="chips-more" onclick="document.getElementById('morechips').hidden=false;this.remove()">+${all.length - SHOW} more</button>` : '')
     + (mine.length ? `<button onclick="location.href='/mine.html'" style="border-color:var(--accent);color:var(--accent)">All my machines' deals →</button>` : '');
   if (qs.get('q')) go(qs.get('q')); else feed();
   showWelcome();
