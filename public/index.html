@@ -7,9 +7,10 @@
   .big input { flex:1 1 0; width:100%; min-width:0; font-size:20px; padding:16px 18px; border-radius:12px; }
   .big button { flex:0 0 auto; font-size:18px; padding:16px 22px; border-radius:12px; white-space:nowrap; }
   @media (max-width:480px){ .big { flex-direction:column; } .big button { width:100%; } }
-  .chips { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:8px; margin-top:14px; }
+  .chips { display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; margin-top:14px; }
+  @media (min-width:600px){ .chips { grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); } }
   .chips .allmine { grid-column:1/-1; }
-  .chips button { font-size:14px; padding:8px 10px; border-radius:999px; background:#1c2029; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .chips button { font-size:14px; padding:8px 8px; min-width:0; border-radius:999px; background:#1c2029; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .market { max-width:900px; margin:26px auto 0; padding:0 20px; display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
   .stat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
   .stat .v { font-size:22px; font-weight:700; } .stat .l { color:var(--muted); font-size:13px; }
