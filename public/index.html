@@ -7,9 +7,9 @@
   .big input { flex:1 1 0; width:100%; min-width:0; font-size:20px; padding:16px 18px; border-radius:12px; }
   .big button { flex:0 0 auto; font-size:18px; padding:16px 22px; border-radius:12px; white-space:nowrap; }
   @media (max-width:480px){ .big { flex-direction:column; } .big button { width:100%; } }
-  .chips { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:14px; }
-  .chips button { font-size:13px; padding:5px 11px; min-height:0; border-radius:999px; background:#1c2029; }
-  .chips #morechips { display:contents; }
+  .chips { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:8px; margin-top:14px; }
+  .chips .allmine { grid-column:1/-1; }
+  .chips button { font-size:14px; padding:8px 10px; border-radius:999px; background:#1c2029; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .market { max-width:900px; margin:26px auto 0; padding:0 20px; display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
   .stat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
   .stat .v { font-size:22px; font-weight:700; } .stat .l { color:var(--muted); font-size:13px; }
@@ -61,10 +61,8 @@ async function init() {
   const popular = prods.products.filter(p => !mine.includes(p.name)).slice(0, 8 - Math.min(mine.length, 8)).map(p => p.name);
   const chip = (m, star) => `<button onclick="go('${esc(m)}')"${star ? ' title="On your watchlist"' : ''}>${star ? '★ ' : ''}${esc(m)}</button>`;
   const all = [...mine.map(m => chip(m, true)), ...popular.map(m => chip(m, false))];
-  const SHOW = 6;
-  $('chips').innerHTML = all.slice(0, SHOW).join('')
-    + (all.length > SHOW ? `<span id="morechips" hidden>${all.slice(SHOW).join('')}</span><button id="chips-more" onclick="document.getElementById('morechips').hidden=false;this.remove()">+${all.length - SHOW} more</button>` : '')
-    + (mine.length ? `<button onclick="location.href='/mine.html'" style="border-color:var(--accent);color:var(--accent)">All my machines' deals →</button>` : '');
+  $('chips').innerHTML = all.join('')
+    + (mine.length ? `<button class="allmine" onclick="location.href='/mine.html'" style="border-color:var(--accent);color:var(--accent)">All my machines' deals →</button>` : '');
   if (qs.get('q')) go(qs.get('q')); else feed();
   showWelcome();
   showSetup(wl.watchlists.length).catch(() => {});
