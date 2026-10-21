@@ -22,6 +22,7 @@ async function api(path, opts = {}) {
 /** Returns the current user or redirects to login. */
 async function requireUser() {
   const u = await api('/api/auth/me');
+  window.currentUser = u;
   window.IS_STAFF = !!u && ['admin', 'broker', 'agent'].includes(u.role);
   window.CAN_HIDE = !!u && (u.role === 'admin' || u.role === 'broker');   // agents work deals but can't hide listings for everyone
   return u;
@@ -89,6 +90,7 @@ function dealCard(d, { broker = false, saved = null } = {}) {
   }
   if (broker && d.url) actions += `<a href="${esc(d.url)}" target="_blank" rel="noopener" style="flex:1"><button style="width:100%">View</button></a>`;
   actions += `<button onclick="shareDeal(${d.id})" title="Send this deal to someone">Share</button>`;
+  if (window.IS_STAFF) actions += `<button onclick="contactSeller(${d.id})" title="Draft a message to whoever is selling it">Contact seller</button><button onclick="followUp(${d.id})" title="Remind me about this">Follow up</button>`;
   actions += blockBtn(d.listing_id);
   window.dealsById = window.dealsById || {}; window.dealsById[d.id] = d;
   const claimed = d.commission_status === 'claimed' && d.claim;
@@ -118,6 +120,53 @@ function cardTap(ev, card) {
   if (ev.target.closest('a, button, input, select, summary')) return;
   const grid = card.closest('.grid'); if (!grid || !grid.classList.contains('compact')) return;
   card.classList.toggle('open');
+}
+
+// Draft a message to the seller in the rep's own name. Uses the listing's phone/email when we
+// have one; otherwise copies the message and opens the listing, where the contact form lives.
+async function contactSeller(id) {
+  const d = (window.dealsById || {})[id]; if (!d) return;
+  const u = window.currentUser || {};
+  const who = [u.name, u.org_name].filter(Boolean).join(', ');
+  const offer = prompt(`Message to the seller of:\n${d.title}\n\nWhat do you want to say? (leave as is or edit)`,
+    `Hi - I'm ${who || 'a buyer'}. I have a buyer for your ${d.title} listed at ${money(d.price)}. Is it still available, and would you consider an offer? Thanks.${u.phone ? ' ' + u.phone : ''}`);
+  if (offer === null) return;
+  const text = offer.trim(); if (!text) return;
+  let how = 'copied';
+  if (d.seller_phone) { how = 'text'; location.href = 'sms:' + encodeURIComponent(String(d.seller_phone).replace(/[^+\d]/g, '')) + '?&body=' + encodeURIComponent(text); }
+  else if (d.seller_email) { how = 'email'; location.href = 'mailto:' + encodeURIComponent(d.seller_email) + '?subject=' + encodeURIComponent('Your ' + d.title) + '&body=' + encodeURIComponent(text); }
+  else {
+    try { await navigator.clipboard.writeText(text); } catch {}
+    alert('No phone or email on this listing. Your message is copied - the listing page has the seller\'s contact form; paste it there.');
+    if (d.url) window.open(d.url, '_blank');
+  }
+  api(`/api/broker/listings/${d.listing_id}/contacted`, { method: 'POST', body: { how } }).catch(() => {});
+}
+
+// "Remind me about this" - a follow-up tied to the deal.
+async function followUp(id) {
+  const d = (window.dealsById || {})[id]; if (!d) return;
+  const note = prompt(`Follow up on:\n${d.title}\n\nNote (who to call, what about):`, d.buyers && d.buyers[0] ? `Call ${d.buyers[0].company}${d.buyers[0].contact ? ' (' + d.buyers[0].contact + ')' : ''}` : '');
+  if (note === null) return;
+  const when = prompt('When? Type: today, tomorrow, 2 days, next week, or a date like 10/28', 'tomorrow');
+  if (when === null) return;
+  const due = parseWhen(when);
+  try {
+    await api('/api/broker/followups', { method: 'POST', body: { listing_id: d.listing_id, buyer_id: d.buyers && d.buyers[0] ? d.buyers[0].id : null, title: d.title, note, due_at: due ? due.toISOString() : null } });
+    alert('Follow-up saved' + (due ? ' for ' + due.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : '') + '. It\'s on the Broker board under Follow-ups.');
+  } catch (e) { alert(e.message); }
+}
+function parseWhen(s) {
+  s = String(s || '').trim().toLowerCase(); const d = new Date(); d.setHours(9, 0, 0, 0);
+  if (!s || s === 'today') return d;
+  if (s === 'tomorrow') { d.setDate(d.getDate() + 1); return d; }
+  let m = s.match(/^(\d+)\s*(day|days|d)$/); if (m) { d.setDate(d.getDate() + Number(m[1])); return d; }
+  m = s.match(/^(\d+)\s*(week|weeks|w)$/); if (m) { d.setDate(d.getDate() + 7 * Number(m[1])); return d; }
+  if (s === 'next week') { d.setDate(d.getDate() + 7); return d; }
+  const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  const di = days.findIndex(x => x.startsWith(s)); if (di >= 0 && s.length >= 3) { const add = (di - d.getDay() + 7) % 7 || 7; d.setDate(d.getDate() + add); return d; }
+  m = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/); if (m) { const y = m[3] ? (m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])) : d.getFullYear(); const t = new Date(y, Number(m[1]) - 1, Number(m[2]), 9); if (t < new Date() && !m[3]) t.setFullYear(y + 1); return t; }
+  const t = new Date(s); return isNaN(t) ? null : t;
 }
 
 // Hand a deal to the phone's share sheet (Messages, email, WhatsApp...). Falls back to an SMS draft.

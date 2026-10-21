@@ -47,7 +47,7 @@ async function fullUser(id) {
 
 const DEAL_COLS = `
   d.id, d.deal_score, d.discount_percent, d.estimated_margin, d.market_price, d.compared_to, d.flagged_at, d.commission_status, l.id AS listing_id,
-  l.title, l.price, l.year, l.hours, l.city, l.state, l.latitude, l.longitude, l.url, l.image_url, l.source, l.sale_type, l.auction_ends, p.name AS product`;
+  l.title, l.price, l.year, l.hours, l.city, l.state, l.latitude, l.longitude, l.url, l.image_url, l.source, l.sale_type, l.auction_ends, l.seller_name, l.seller_phone, l.seller_email, p.name AS product`;
 
 router.get('/', async (req, res, next) => {
   try {

@@ -177,6 +177,8 @@ ALTER TABLE ingest_runs ADD COLUMN IF NOT EXISTS note TEXT;
 ALTER TABLE ingest_runs ADD COLUMN IF NOT EXISTS returned INTEGER DEFAULT 0;   -- items the scraper billed us for (fetched = ones we kept)
 ALTER TABLE market_stats ADD COLUMN IF NOT EXISTS basis VARCHAR(10) DEFAULT 'asking';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS yard_city VARCHAR(100);   -- where the user takes delivery (landed cost)
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS seller_phone VARCHAR(40);
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS seller_email VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS commission_percent NUMERIC(5,2);   -- the user's own cut; shown only to them
 ALTER TABLE users ADD COLUMN IF NOT EXISTS yard_state VARCHAR(2);   -- 'sold' when built from completed sales
 CREATE INDEX IF NOT EXISTS idx_listings_product   ON listings(product_id);
@@ -303,6 +305,20 @@ CREATE TABLE IF NOT EXISTS app_state (
   value TEXT,
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Follow-ups: "call Joe Tuesday about the loader". Per person.
+CREATE TABLE IF NOT EXISTS followups (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  listing_id UUID REFERENCES listings(id) ON DELETE SET NULL,
+  buyer_id   INTEGER REFERENCES buyers(id) ON DELETE SET NULL,
+  title      VARCHAR(255),
+  note       TEXT,
+  due_at     TIMESTAMP,
+  done_at    TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_followups_user ON followups(user_id, done_at, due_at);
 
 -- Who did what (for the owner to see how accounts are used)
 CREATE TABLE IF NOT EXISTS activity (

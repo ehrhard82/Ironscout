@@ -18,6 +18,7 @@
   <div class="section" style="margin-bottom:10px"><div class="tabs">
     <button class="on" id="tab-deals" onclick="showTab('deals')">Deals to work</button>
     <button id="tab-buyers" onclick="showTab('buyers')">Buyers</button>
+    <button id="tab-followups" onclick="showTab('followups')">Follow-ups <span id="fu-count" class="muted small"></span></button>
     <button class="primary" onclick="showTab('buyers');$('add-details').open=true;$('b-company').focus()">+ Add buyer</button>
   </div></div>
   <div class="section" id="pane-deals">
@@ -31,6 +32,13 @@
     </div>
     <div id="deals" class="grid"></div>
     <details id="blocked-box" style="margin-top:18px"><summary class="small muted">Hidden listings (marked "Not this machine")</summary><div id="blocked" class="small" style="margin-top:8px"></div></details>
+  </div>
+
+  <div class="section" id="pane-followups" style="display:none">
+    <h2>Follow-ups</h2>
+    <p class="muted small">Your reminders. Tap <b>Follow up</b> on any deal card to add one, or add a note here.</p>
+    <div class="row" style="margin-bottom:10px"><input id="fu-note" placeholder="Call Joe about the loader" style="flex:2 1 200px"><input id="fu-when" placeholder="tomorrow / Fri / 10/28" style="flex:1 1 120px"><button class="primary" id="fu-add">Add</button></div>
+    <div id="followups"></div>
   </div>
 
   <div class="section" id="pane-buyers" style="display:none">
@@ -71,7 +79,8 @@ async function load() {
   renderKpis(dash);
   await Promise.all([reloadDeals(), loadBuyers(), loadBlocked()]);
   if (!window.CAN_HIDE) $('blocked-box').style.display = 'none';
-  if (location.hash === '#buyers') showTab('buyers');
+  if (location.hash === '#buyers') showTab('buyers'); else if (location.hash === '#followups') showTab('followups');
+  api('/api/broker/followups').then(rows => { const n = rows.filter(r => !r.done_at).length; $('fu-count').textContent = n ? `(${n})` : ''; }).catch(() => {});
 }
 async function loadBlocked() {
   if (!window.CAN_HIDE) return;
@@ -82,11 +91,30 @@ async function restoreListing(id) {
   try { await api(`/api/broker/listings/${id}/block`, { method: 'DELETE' }); await loadBlocked(); } catch (e) { alert(e.message); }
 }
 function showTab(t) {
-  $('pane-deals').style.display = t === 'deals' ? '' : 'none';
-  $('pane-buyers').style.display = t === 'buyers' ? '' : 'none';
-  $('tab-deals').classList.toggle('on', t === 'deals'); $('tab-buyers').classList.toggle('on', t === 'buyers');
-  history.replaceState(null, '', '/broker.html' + (t === 'buyers' ? '#buyers' : ''));
+  for (const k of ['deals', 'buyers', 'followups']) { $('pane-' + k).style.display = t === k ? '' : 'none'; $('tab-' + k).classList.toggle('on', t === k); }
+  history.replaceState(null, '', '/broker.html' + (t === 'deals' ? '' : '#' + t));
+  if (t === 'followups') loadFollowups();
 }
+async function loadFollowups() {
+  const rows = await api('/api/broker/followups');
+  const open = rows.filter(r => !r.done_at), done = rows.filter(r => r.done_at);
+  const overdue = (r) => r.due_at && new Date(r.due_at) < new Date();
+  $('fu-count').textContent = open.length ? `(${open.length})` : '';
+  const line = (r) => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line);align-items:flex-start"><div style="flex:1;min-width:0">
+      ${r.due_at ? `<span class="small ${overdue(r) && !r.done_at ? 'err' : 'muted'}">${new Date(r.due_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span> ` : ''}<b>${esc(r.note || r.title || '')}</b>
+      ${r.title && r.note ? `<div class="small muted">${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>` : esc(r.title)}${r.price ? ' · ' + money(r.price) : ''}${r.buyer ? ' · ' + esc(r.buyer) : ''}</div>` : ''}
+    </div>${r.done_at ? `<span class="muted small">done</span>` : `<button class="small" onclick="fuDone(${r.id})">Done</button>`}<button class="small" onclick="fuDel(${r.id})" title="Remove">✕</button></div>`;
+  $('followups').innerHTML = (open.length ? open.map(line).join('') : '<div class="muted" style="padding:10px 0">Nothing to follow up on. Tap <b>Follow up</b> on a deal card and it lands here.</div>')
+    + (done.length ? `<details style="margin-top:10px"><summary class="small muted">Done this week (${done.length})</summary>${done.map(line).join('')}</details>` : '');
+}
+async function fuDone(id) { await api('/api/broker/followups/' + id + '/done', { method: 'POST', body: {} }); loadFollowups(); }
+async function fuDel(id) { await api('/api/broker/followups/' + id, { method: 'DELETE' }); loadFollowups(); }
+$('fu-add').onclick = async () => {
+  const note = $('fu-note').value.trim(); if (!note) return;
+  const due = parseWhen($('fu-when').value);
+  await api('/api/broker/followups', { method: 'POST', body: { note, due_at: due ? due.toISOString() : null } });
+  $('fu-note').value = ''; $('fu-when').value = ''; loadFollowups();
+};
 function setStatus(s) { status = s; document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.status === s)); reloadDeals(); }
 function renderKpis(dash) {
   $('kpis').innerHTML = `

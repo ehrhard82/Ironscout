@@ -167,4 +167,42 @@ router.post('/deals/:id/release', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ---- follow-ups --------------------------------------------------------------
+router.get('/followups', async (req, res, next) => {
+  try {
+    const r = await pool.query(`SELECT f.id, f.title, f.note, f.due_at, f.done_at, f.created_at, f.listing_id, f.buyer_id,
+                                       l.price::float AS price, l.url, b.company AS buyer
+                                FROM followups f LEFT JOIN listings l ON l.id = f.listing_id LEFT JOIN buyers b ON b.id = f.buyer_id
+                                WHERE f.user_id = $1 AND (f.done_at IS NULL OR f.done_at > NOW() - INTERVAL '7 days')
+                                ORDER BY f.done_at NULLS FIRST, f.due_at NULLS LAST, f.created_at DESC LIMIT 200`, [req.user.id]);
+    res.json(r.rows);
+  } catch (e) { next(e); }
+});
+router.post('/followups', async (req, res, next) => {
+  try {
+    const b = req.body || {};
+    const due = b.due_at ? new Date(b.due_at) : null;
+    const r = await pool.query(`INSERT INTO followups (user_id, listing_id, buyer_id, title, note, due_at) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [req.user.id, b.listing_id || null, b.buyer_id ? Number(b.buyer_id) : null, String(b.title || '').slice(0, 255) || null, String(b.note || '').slice(0, 2000) || null, due && !isNaN(due) ? due : null]);
+    require('../lib/activity').log(req.user, 'follow-up set', b.title);
+    res.status(201).json(r.rows[0]);
+  } catch (e) { next(e); }
+});
+router.post('/followups/:id/done', async (req, res, next) => {
+  try { await pool.query('UPDATE followups SET done_at = NOW() WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]); res.json({ ok: true }); } catch (e) { next(e); }
+});
+router.delete('/followups/:id', async (req, res, next) => {
+  try { await pool.query('DELETE FROM followups WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]); res.json({ ok: true }); } catch (e) { next(e); }
+});
+// Record that someone reached out to a seller (so teammates don't double up)
+router.post('/listings/:id/contacted', async (req, res, next) => {
+  try {
+    const t = (await pool.query('SELECT title FROM listings WHERE id = $1', [req.params.id])).rows[0];
+    require('../lib/activity').log(req.user, 'contacted seller', t && t.title);
+    await pool.query('INSERT INTO broker_interactions (deal_id, broker_id, action, notes, org_id) SELECT d.id, $2, $3, $4, $5 FROM deals d WHERE d.listing_id = $1',
+      [req.params.id, req.user.email, 'contacted seller', String(req.body?.how || '').slice(0, 100) || null, req.user.org_id || null]).catch(() => {});
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;

@@ -10,7 +10,7 @@ const dealSelect = (user) => `
   SELECT d.id, d.deal_score, d.discount_percent, d.discount_amount, d.estimated_margin, d.market_price,
          d.compared_to, d.commission_status, d.flagged_at,
          l.id AS listing_id, l.title, l.price, l.condition, l.year, l.hours,
-         l.city, l.state, l.zip_code, l.latitude, l.longitude, l.url, l.image_url, l.seller_name, l.source, l.sale_type, l.auction_ends, l.posted_date,
+         l.city, l.state, l.zip_code, l.latitude, l.longitude, l.url, l.image_url, l.seller_name, l.seller_phone, l.seller_email, l.source, l.sale_type, l.auction_ends, l.posted_date,
          p.name AS product
   FROM deals d
   JOIN listings l ON l.id = d.listing_id
