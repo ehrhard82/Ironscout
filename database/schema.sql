@@ -306,6 +306,17 @@ CREATE TABLE IF NOT EXISTS app_state (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Emails to a broker's clients when a machine they want shows up (sent in the rep's name).
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS client_emails BOOLEAN DEFAULT FALSE;   -- switched on per company once their sending domain is set
+ALTER TABLE buyers ADD COLUMN IF NOT EXISTS emails BOOLEAN DEFAULT TRUE;                   -- per buyer opt-out
+ALTER TABLE buyers ADD COLUMN IF NOT EXISTS last_mailed_at TIMESTAMP;
+CREATE TABLE IF NOT EXISTS buyer_alert_log (
+  buyer_id   INTEGER NOT NULL REFERENCES buyers(id) ON DELETE CASCADE,
+  listing_id UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+  sent_at    TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (buyer_id, listing_id)
+);
+
 -- Follow-ups: "call Joe Tuesday about the loader". Per person.
 CREATE TABLE IF NOT EXISTS followups (
   id         SERIAL PRIMARY KEY,

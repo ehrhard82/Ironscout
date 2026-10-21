@@ -148,6 +148,7 @@ async function loadBuyers() {
         <input id="e-company-${b.id}" placeholder="Company" class="wide" value="${esc(b.company)}">
         <input id="e-contact-${b.id}" placeholder="Contact name" value="${esc(b.contact_name || '')}"><input id="e-phone-${b.id}" placeholder="Phone" type="tel" value="${esc(b.phone || '')}">
         <input id="e-email-${b.id}" placeholder="Email" type="email" value="${esc(b.email || '')}">
+        <label class="small muted wide"><input type="checkbox" id="e-emails-${b.id}" ${b.emails === false ? '' : 'checked'}> Email them when a matching machine shows up (sent in your name; they reply to you)</label>
         <input id="e-city-${b.id}" placeholder="City" value="${esc(b.city || '')}"><input id="e-state-${b.id}" placeholder="State" maxlength="2" value="${esc(b.state || '')}">
         <div class="wide muted small">Deliver-to (blank = their address)</div>
         <input id="e-dcity-${b.id}" placeholder="Deliver-to city" value="${esc(b.deliver_city || '')}"><input id="e-dstate-${b.id}" placeholder="Deliver-to state" maxlength="2" value="${esc(b.deliver_state || '')}">
@@ -187,7 +188,7 @@ async function addWant(id) {
 async function saveEdit(id) {
   const v = (k) => $(`e-${k}-${id}`).value.trim();
   if (!v('company')) return alert('Company name is required');
-  try { await patchBuyer(id, { company: v('company'), contact_name: v('contact'), phone: v('phone'), email: v('email'), city: v('city'), state: v('state'), deliver_city: v('dcity'), deliver_state: v('dstate'), notes: v('notes') }); }
+  try { await patchBuyer(id, { company: v('company'), contact_name: v('contact'), phone: v('phone'), email: v('email'), city: v('city'), state: v('state'), deliver_city: v('dcity'), deliver_state: v('dstate'), notes: v('notes'), emails: $(`e-emails-${id}`).checked }); }
   catch (e) { alert(e.message); }
 }
 async function delWant(id) { await api(`/api/buyers/wants/${id}`, { method: 'DELETE' }); await Promise.all([loadBuyers(), reloadDeals()]); }

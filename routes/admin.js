@@ -64,7 +64,7 @@ router.get('/users', async (req, res, next) => {
 // ---- companies --------------------------------------------------------------
 // Everyone in a company shares claims and the team view; companies never see each other's.
 router.get('/orgs', async (req, res, next) => {
-  try { res.json((await pool.query(`SELECT o.id, o.name, (SELECT COUNT(*)::int FROM users u WHERE u.org_id = o.id) AS members, (SELECT COALESCE(json_agg(json_build_object('id', u.id, 'name', u.name, 'email', u.email, 'role', u.role) ORDER BY u.email), '[]'::json) FROM users u WHERE u.org_id = o.id) AS people FROM organizations o ORDER BY o.name`)).rows); } catch (e) { next(e); }
+  try { res.json((await pool.query(`SELECT o.id, o.name, o.client_emails, (SELECT COUNT(*)::int FROM users u WHERE u.org_id = o.id) AS members, (SELECT COALESCE(json_agg(json_build_object('id', u.id, 'name', u.name, 'email', u.email, 'role', u.role) ORDER BY u.email), '[]'::json) FROM users u WHERE u.org_id = o.id) AS people FROM organizations o ORDER BY o.name`)).rows); } catch (e) { next(e); }
 });
 router.post('/orgs', async (req, res, next) => {
   try {
@@ -75,6 +75,10 @@ router.post('/orgs', async (req, res, next) => {
 });
 router.patch('/orgs/:id', async (req, res, next) => {
   try {
+    if (req.body && typeof req.body.client_emails === 'boolean') {
+      const r = await pool.query('UPDATE organizations SET client_emails = $2 WHERE id = $1 RETURNING id, name, client_emails', [req.params.id, req.body.client_emails]);
+      return r.rows.length ? res.json(r.rows[0]) : res.status(404).json({ error: 'Not found' });
+    }
     const name = String(req.body?.name || '').trim().slice(0, 200);
     if (!name) return res.status(400).json({ error: 'Company name required' });
     const r = await pool.query('UPDATE organizations SET name = $2 WHERE id = $1 RETURNING id, name', [req.params.id, name]);
