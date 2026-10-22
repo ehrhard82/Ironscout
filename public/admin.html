@@ -32,6 +32,17 @@ winch truck,2016 Peterbilt 367 winch truck,98500,2026-09-02,2016,210000,Odessa,T
   <div class="section"><h2>Users</h2><div class="card">
     <div class="row" style="margin-bottom:10px"><input id="nu-email" placeholder="email" type="email" autocapitalize="none" style="flex:1 1 100%"><input id="nu-pw" placeholder="password (8+ characters)" style="flex:1 1 100%"><input id="nu-name" placeholder="name" style="flex:1 1 100%">
       <select id="nu-org"><option value="">new company for this person</option></select><select id="nu-role"><option>subscriber</option><option>agent</option><option>broker</option><option>admin</option></select><button id="nu-btn">Create account</button><span id="nu-msg" class="err small"></span></div>
+    <div id="user-edit" hidden style="background:#121922;border:1px solid var(--accent);border-radius:10px;padding:12px;margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:1fr;gap:8px">
+        <b id="ue-title">Edit account</b>
+        <input id="ue-name" placeholder="Name">
+        <input id="ue-email" placeholder="Email" type="email" autocapitalize="none">
+        <input id="ue-pw" placeholder="New password (8+ characters; leave blank to keep)">
+        <div class="row"><label class="small muted" style="flex:1">Role <select id="ue-role" style="width:100%"><option>subscriber</option><option>agent</option><option>broker</option><option>admin</option></select></label>
+          <label class="small muted" style="flex:1">Company <select id="ue-org" style="width:100%"></select></label></div>
+        <div class="row"><button class="primary" id="ue-save">Save</button><button id="ue-cancel">Cancel</button><span class="muted small">A new password signs them out everywhere.</span><span id="ue-msg" class="small"></span></div>
+      </div>
+    </div>
     <table id="users"><thead><tr><th>Email</th><th>Role</th><th>Company</th><th>Subscription</th><th>Machines</th><th>Last login</th><th></th></tr></thead><tbody></tbody></table>
   </div></div>
 
@@ -65,8 +76,7 @@ async function load() {
   $('products').innerHTML = prods.products.map(p => `<option value="${esc(p.name)}">`).join('');
   $('requests').querySelector('tbody').innerHTML = reqs.requests.map(r => `<tr><td>${esc(r.term)}</td><td>${esc(r.email || '—')}</td><td>${new Date(r.created_at).toLocaleDateString()}</td><td>${r.status}</td>
     <td>${r.status === 'pending' ? `<button onclick="act('/api/admin/requests/${r.id}/approve')">Approve & fetch</button> <button onclick="act('/api/admin/requests/${r.id}/reject')">Reject</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">None</td></tr>';
-  $('users').querySelector('tbody').innerHTML = users.users.map(u => `<tr><td>${esc(u.email)}<br><span class="muted small">${esc(u.name || '')}</span><br><button style="padding:4px 10px;margin-top:4px" data-edit="${u.id}">Edit</button>
-      <div id="ue-${u.id}" hidden style="margin-top:8px;min-width:230px"><input id="ue-name-${u.id}" placeholder="Name" value="${esc(u.name || '')}" style="width:100%;margin-bottom:6px"><input id="ue-email-${u.id}" placeholder="Email" type="email" autocapitalize="none" value="${esc(u.email)}" style="width:100%;margin-bottom:6px"><input id="ue-pw-${u.id}" placeholder="New password (leave blank to keep)" style="width:100%;margin-bottom:6px"><button class="primary" data-saveuser="${u.id}">Save</button> <span class="muted small">A new password signs them out everywhere.</span></div></td>
+  $('users').querySelector('tbody').innerHTML = users.users.map(u => `<tr><td>${esc(u.email)}<br><span class="muted small">${esc(u.name || '')}</span><br><button style="padding:4px 10px;margin-top:4px" data-edit="${u.id}">Edit</button></td>
     <td><select onchange="patchUser(${u.id},{role:this.value})"><option ${u.role==='subscriber'?'selected':''}>subscriber</option><option ${u.role==='agent'?'selected':''}>agent</option><option ${u.role==='broker'?'selected':''}>broker</option><option ${u.role==='admin'?'selected':''}>admin</option></select></td>
     <td><select onchange="patchUser(${u.id},{org_id:this.value})">${orgs.map(o => `<option value="${o.id}" ${o.id === u.org_id ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select></td>
     <td>${esc(u.subscription_status)}${u.subscription_ends_at ? `<br><span class="muted small">until ${new Date(u.subscription_ends_at).toLocaleDateString()}</span>` : ''}</td>
@@ -91,6 +101,7 @@ async function load() {
     const m = ev.target.closest('[data-moveuser]'); if (m && m.value) { try { await api('/api/admin/users/' + m.dataset.moveuser, { method: 'PATCH', body: { org_id: m.value } }); openOrg = m.closest('[id^=oe-]').id.slice(3); load(); } catch (err) { alert(err.message); } } };
   if (openOrg) { const box = document.getElementById('oe-' + openOrg); if (box) box.hidden = false; openOrg = null; }
   $('nu-org').innerHTML = '<option value="">new company for this person</option>' + orgs.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
+  window.allUsers = users.users; window.allOrgs = orgs;
   window.allActivity = activity;
   $('act-who').innerHTML = '<option value="">everyone</option>' + [...new Set(activity.map(a => a.email))].map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join('');
   $('act-who').onchange = renderActivity; renderActivity();
@@ -106,15 +117,25 @@ async function load() {
   }).join('') || '<div class="muted">No runs yet</div>';
 }
 async function act(path, body) { try { await api(path, { method: 'POST', body }); load(); } catch (e) { alert(e.message); } }
-document.addEventListener('click', async (ev) => {
-  const e = ev.target.closest('[data-edit]'), sv = ev.target.closest('[data-saveuser]');
-  if (e) { const box = document.getElementById('ue-' + e.dataset.edit); box.hidden = !box.hidden; }
-  if (sv) {
-    const id = sv.dataset.saveuser, body = { name: document.getElementById('ue-name-' + id).value, email: document.getElementById('ue-email-' + id).value };
-    const pw = document.getElementById('ue-pw-' + id).value; if (pw) body.password = pw;
-    try { await api('/api/admin/users/' + id, { method: 'PATCH', body }); load(); } catch (err) { alert(err.message); }
-  }
+let editingUser = null;
+document.addEventListener('click', (ev) => {
+  const e = ev.target.closest('[data-edit]'); if (!e) return;
+  const u = (window.allUsers || []).find(x => String(x.id) === e.dataset.edit); if (!u) return;
+  editingUser = u.id;
+  $('ue-title').textContent = 'Edit ' + (u.name || u.email);
+  $('ue-name').value = u.name || ''; $('ue-email').value = u.email; $('ue-pw').value = ''; $('ue-role').value = u.role; $('ue-msg').textContent = '';
+  $('ue-org').innerHTML = (window.allOrgs || []).map(o => `<option value="${o.id}" ${o.id === u.org_id ? 'selected' : ''}>${esc(o.name)}</option>`).join('');
+  $('user-edit').hidden = false; $('user-edit').scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
+$('ue-cancel').onclick = () => { $('user-edit').hidden = true; editingUser = null; };
+$('ue-save').onclick = async () => {
+  if (!editingUser) return;
+  const body = { name: $('ue-name').value, email: $('ue-email').value.trim(), role: $('ue-role').value, org_id: $('ue-org').value };
+  const pw = $('ue-pw').value; if (pw) body.password = pw;
+  $('ue-msg').className = 'small muted'; $('ue-msg').textContent = 'Saving…';
+  try { await api('/api/admin/users/' + editingUser, { method: 'PATCH', body }); $('ue-msg').className = 'small ok'; $('ue-msg').textContent = 'Saved.'; setTimeout(() => { $('user-edit').hidden = true; editingUser = null; load(); }, 600); }
+  catch (err) { $('ue-msg').className = 'small err'; $('ue-msg').textContent = err.message; }
+};
 function renderActivity() {
   const who = $('act-who').value, rows = (window.allActivity || []).filter(a => !who || a.email === who).slice(0, 80);
   $('activity').innerHTML = rows.length ? rows.map(a => `<div style="padding:5px 0;border-bottom:1px solid var(--line)"><span class="muted">${new Date(a.at).toLocaleString(undefined, { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span> <b>${esc(a.name || a.email.split('@')[0])}</b> ${esc(a.action)}${a.detail ? `: <span class="muted">${esc(a.detail)}</span>` : ''}</div>`).join('') : '<div class="muted">Nothing yet.</div>';
