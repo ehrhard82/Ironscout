@@ -235,6 +235,34 @@ router.post('/import-sales', express.text({ type: '*/*', limit: '5mb' }), async 
   } catch (e) { next(e); }
 });
 
+// GET /api/admin/prospects[.csv]?states=TX,OK,NM
+// Dealers seen selling on the dealer sites (not auctions): who they are, where, what they list.
+// This is the prospect list - people actively selling the exact machines the tool tracks.
+router.get(['/prospects', '/prospects.csv'], async (req, res, next) => {
+  try {
+    const states = String(req.query.states || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+    const params = []; let where = `l.seller_name IS NOT NULL AND l.seller_name <> '' AND l.source IN ('machinio', 'ebay', 'craigslist')`;
+    if (states.length) { params.push(states); where += ` AND l.state = ANY($1)`; }
+    const r = await pool.query(`
+      SELECT l.seller_name AS dealer,
+             MODE() WITHIN GROUP (ORDER BY l.city) AS city, MODE() WITHIN GROUP (ORDER BY l.state) AS state,
+             MAX(l.seller_phone) AS phone, MAX(l.seller_email) AS email,
+             COUNT(*)::int AS listings, COUNT(*) FILTER (WHERE l.is_active)::int AS active_listings,
+             STRING_AGG(DISTINCT p.name, ', ' ORDER BY p.name) AS machines,
+             MAX(l.last_seen)::date AS last_seen, MIN(l.url) AS example_listing
+      FROM listings l JOIN products p ON p.id = l.product_id
+      WHERE ${where}
+      GROUP BY l.seller_name ORDER BY active_listings DESC, listings DESC LIMIT 1000`, params);
+    if (req.path.endsWith('.csv')) {
+      const cols = ['dealer', 'city', 'state', 'phone', 'email', 'active_listings', 'listings', 'machines', 'last_seen', 'example_listing'];
+      const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      res.setHeader('Content-Type', 'text/csv'); res.setHeader('Content-Disposition', 'attachment; filename="ironscout-prospects.csv"');
+      return res.send(cols.join(',') + '\n' + r.rows.map(x => cols.map(c => q(x[c])).join(',')).join('\n'));
+    }
+    res.json({ count: r.rows.length, prospects: r.rows });
+  } catch (e) { next(e); }
+});
+
 // GET /api/admin/activity   who did what, newest first
 router.get('/activity', async (req, res, next) => {
   try {

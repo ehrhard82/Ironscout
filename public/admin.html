@@ -35,6 +35,12 @@ winch truck,2016 Peterbilt 367 winch truck,98500,2026-09-02,2016,210000,Odessa,T
     <table id="users"><thead><tr><th>Email</th><th>Role</th><th>Company</th><th>Subscription</th><th>Machines</th><th>Last login</th><th></th></tr></thead><tbody></tbody></table>
   </div></div>
 
+  <div class="section"><h2>Prospects — dealers selling what we track</h2><div class="card">
+    <p class="muted small" style="margin-top:0">Every dealer seen on Machinio (and eBay/Craigslist when on) listing a tracked machine: who, where, what they sell, and a phone or email when the listing carried one. These are the people to call. Auction-site sellers aren't included (they're anonymous).</p>
+    <div class="row" style="margin-bottom:10px"><input id="pr-states" placeholder="States (TX, OK, NM) — blank = all" style="flex:1 1 180px"><button id="pr-load">Show</button><a id="pr-csv" class="small" href="/api/admin/prospects.csv">Download spreadsheet</a></div>
+    <table id="prospects"><thead><tr><th>Dealer</th><th>Where</th><th>Contact</th><th>Listing</th><th>Machines</th><th>Last seen</th></tr></thead><tbody><tr><td colspan="6" class="muted">Tap Show.</td></tr></tbody></table>
+  </div></div>
+
   <div class="section"><h2>What people are doing</h2><div class="card">
     <div class="row" style="margin-bottom:8px"><select id="act-who"><option value="">everyone</option></select><span class="muted small">Logins, lookups, buyers added, claims. Newest first.</span></div>
     <div id="activity" class="small"></div>
@@ -142,6 +148,14 @@ $('alerts-btn').onclick = async () => { const r = await api('/api/admin/alerts/r
 $('no-btn').onclick = async () => { try { await api('/api/admin/orgs', { method: 'POST', body: { name: $('no-name').value } }); $('no-name').value = ''; load(); } catch (e) { alert(e.message); } };
 async function deleteOrg(id, name) { if (!confirm('Delete the empty company "' + name + '"?')) return; try { await api('/api/admin/orgs/' + id, { method: 'DELETE' }); load(); } catch (e) { alert(e.message); } }
 async function renameOrg(id, cur) { const n = prompt('Company name', cur); if (!n) return; try { await api('/api/admin/orgs/' + id, { method: 'PATCH', body: { name: n } }); load(); } catch (e) { alert(e.message); } }
+$('pr-load').onclick = async () => {
+  const st = $('pr-states').value.trim(); $('pr-csv').href = '/api/admin/prospects.csv' + (st ? '?states=' + encodeURIComponent(st) : '');
+  const r = await api('/api/admin/prospects' + (st ? '?states=' + encodeURIComponent(st) : ''));
+  $('prospects').querySelector('tbody').innerHTML = r.prospects.length ? r.prospects.map(p => `<tr><td><b>${esc(p.dealer)}</b></td><td>${esc([p.city, p.state].filter(Boolean).join(', '))}</td>
+    <td>${p.phone ? `<a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>` : ''}${p.phone && p.email ? '<br>' : ''}${p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : ''}${!p.phone && !p.email ? '<span class="muted">via listing</span>' : ''}</td>
+    <td>${p.active_listings} live${p.example_listing ? ` · <a href="${esc(p.example_listing)}" target="_blank" rel="noopener">open one</a>` : ''}</td><td class="small">${esc(p.machines)}</td><td class="muted small">${p.last_seen ? new Date(p.last_seen).toLocaleDateString() : ''}</td></tr>`).join('')
+    : '<tr><td colspan="6" class="muted">No dealers found for those states yet.</td></tr>';
+};
 $('mail-btn').onclick = async () => { $('mail-msg').className = 'small muted'; $('mail-msg').textContent = 'Sending…'; try { const r = await api('/api/admin/test-email', { method: 'POST', body: {} }); $('mail-msg').className = 'small ok'; $('mail-msg').textContent = 'Sent to ' + r.to + ' — check your inbox (and spam).'; } catch (e) { $('mail-msg').className = 'small err'; $('mail-msg').textContent = e.message; } };
 $('nu-btn').onclick = async () => { $('nu-msg').textContent = ''; try { await api('/api/admin/users', { method: 'POST', body: { email: $('nu-email').value, password: $('nu-pw').value, name: $('nu-name').value, role: $('nu-role').value, org_id: $('nu-org').value || null } }); $('nu-email').value = $('nu-pw').value = $('nu-name').value = ''; load(); } catch (e) { $('nu-msg').textContent = e.message; } };
 load().catch(e => { if (!['login', 'subscribe'].includes(e.message)) console.error(e); });
