@@ -36,9 +36,29 @@ router.post('/listings/:id/block', curators, async (req, res, next) => {
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
+// "Parts / attachment": a real listing, but forks / a bucket / a tire set, not the machine. Marked for
+// everyone (it affects the market value, which is shared), parked in the Parts pile on the machine page.
+// Other active listings with the identical title get marked too, so repeats sort themselves.
+router.post('/listings/:id/parts', curators, async (req, res, next) => {
+  try {
+    const id = req.params.id;
+    const l = (await pool.query('SELECT product_id, title FROM listings WHERE id = $1', [id])).rows[0];
+    if (!l) return res.status(404).json({ error: 'not found' });
+    const same = (await pool.query(`SELECT id FROM listings WHERE product_id = $1 AND is_active AND lower(trim(title)) = lower(trim($2))`, [l.product_id, l.title])).rows.map(r => r.id);
+    const ids = [...new Set([id, ...same])];
+    for (const lid of ids) {
+      await pool.query(`INSERT INTO listing_blocks (listing_id, blocked_by, org_id, kind) VALUES ($1,$2,NULL,'parts')
+                        ON CONFLICT (listing_id, COALESCE(org_id, 0)) DO UPDATE SET kind = 'parts', blocked_by = EXCLUDED.blocked_by, blocked_at = NOW()`, [lid, req.user.id]);
+    }
+    require('../lib/activity').log(req.user, 'marked as parts', `${l.title}`.slice(0, 120));
+    require('../lib/pricing').recalculateProduct(l.product_id).catch(e => console.error('recalc after parts failed:', e.message));
+    res.json({ ok: true, marked: ids.length });
+  } catch (e) { next(e); }
+});
 router.delete('/listings/:id/block', curators, async (req, res, next) => {
   try {
-    const r = await pool.query(`DELETE FROM listing_blocks WHERE listing_id = $1 AND ${isAdmin(req.user) ? 'org_id IS NULL' : 'org_id = $2'} RETURNING listing_id`,
+    // admins undo global marks; brokers undo their company's hides and anyone's parts marks (those are global by design)
+    const r = await pool.query(`DELETE FROM listing_blocks WHERE listing_id = $1 AND ${isAdmin(req.user) ? 'org_id IS NULL' : "(org_id = $2 OR (org_id IS NULL AND kind = 'parts'))"} RETURNING listing_id`,
       isAdmin(req.user) ? [req.params.id] : [req.params.id, req.user.org_id]);
     const p = (await pool.query('SELECT product_id FROM listings WHERE id = $1', [req.params.id])).rows[0];
     if (p && isAdmin(req.user)) require('../lib/pricing').recalculateProduct(p.product_id).catch(() => {});
@@ -47,9 +67,9 @@ router.delete('/listings/:id/block', curators, async (req, res, next) => {
 });
 router.get('/blocked', curators, async (req, res, next) => {
   try {
-    res.json((await pool.query(`SELECT l.id, l.title, l.price::float AS price, l.url, (SELECT name FROM products WHERE id = l.product_id) AS product
+    res.json((await pool.query(`SELECT l.id, l.title, l.price::float AS price, l.url, COALESCE(b.kind, 'hide') AS kind, (SELECT name FROM products WHERE id = l.product_id) AS product
                                 FROM listing_blocks b JOIN listings l ON l.id = b.listing_id
-                                WHERE ${isAdmin(req.user) ? 'b.org_id IS NULL' : 'b.org_id = $1'} ORDER BY b.blocked_at DESC LIMIT 100`,
+                                WHERE ${isAdmin(req.user) ? 'b.org_id IS NULL' : "(b.org_id = $1 OR (b.org_id IS NULL AND b.kind = 'parts'))"} ORDER BY b.blocked_at DESC LIMIT 100`,
                                isAdmin(req.user) ? [] : [req.user.org_id])).rows);
   } catch (e) { next(e); }
 });

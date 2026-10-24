@@ -48,6 +48,9 @@
 <main><div id="list" class="grid"></div></main>
 <script src="/app.js"></script>
 <script>
+async function unmarkParts(id) { try { await api(`/api/broker/listings/${id}/block`, { method: 'DELETE' }); const el = document.getElementById('part-' + id); if (el) el.remove(); } catch (e) { alert(e.message); } }
+</script>
+<script>
 let user, savedIds = new Set(), current = null, showAll = false;
 const qs = new URLSearchParams(location.search);
 
@@ -158,6 +161,9 @@ async function go(q, opts = {}) {
     ${r.recent_sales && r.recent_sales.length ? `<div class="heading"><details style="width:100%"><summary class="small" style="cursor:pointer">Recent sales we've seen (${r.sales_count}) — what these actually sold for</summary>
       <div class="small" style="margin-top:8px">${r.recent_sales.map(x => `<div style="padding:5px 0;border-bottom:1px solid var(--line)"><b>${money(x.price)}</b> · ${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title)} <span class="muted">· ${[x.city, x.state].filter(Boolean).join(', ')}${x.hours ? ` · ${Number(x.hours).toLocaleString()} hrs` : ''}${x.sold_at ? ` · ${new Date(x.sold_at).toLocaleDateString()}` : ''} · ${esc(x.source)}</span></div>`).join('')}</div></details></div>` : ''}
     ${states ? `<div class="heading"><div class="small muted">By state: ${states}</div></div>` : ''}
+    ${r.parts_listings && r.parts_listings.length ? `<div class="heading"><details style="width:100%"><summary class="small" style="cursor:pointer">Parts &amp; attachments (${r.parts_listings.length}) — forks, buckets, tires, cabs listed under this machine</summary>
+      <div class="small muted" style="margin:6px 0">Real listings, kept here in case a buyer wants one. They never count toward the market value or the deals.</div>
+      <div class="small" id="parts-list">${r.parts_listings.map(x => `<div style="padding:5px 0;border-bottom:1px solid var(--line)" id="part-${x.id}"><b>${money(x.price)}</b> · ${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title)} <span class="muted">· ${[x.city, x.state].filter(Boolean).join(', ')} · ${esc(SOURCE_NAMES[x.source] || x.source)}${x.marked ? ' · marked by staff' : ' · auto-sorted'}</span>${x.marked && window.CAN_HIDE ? ` <button class="small" style="margin-left:6px" onclick="unmarkParts('${x.id}')">It's a machine</button>` : ''}</div>`).join('')}</div></details></div>` : ''}
     ${m.abroad && m.abroad.length ? `<div class="heading"><details style="width:100%"><summary class="small" style="cursor:pointer"><b>Abroad:</b> ${m.abroad.sort((a, b) => b.sample_size - a.sample_size).slice(0, 5).map(a => `${esc(a.country)} ${money(a.median_price)} <span class="muted">(${a.sample_size})</span>${m.us_median ? ` <span style="color:${a.median_price > m.us_median ? 'var(--good, #4caf50)' : 'var(--muted)'}">${a.median_price > m.us_median ? '+' : ''}${Math.round((a.median_price - m.us_median) / m.us_median * 100)}%</span>` : ''}`).join(' &nbsp;·&nbsp; ')}</summary>
       <div class="small muted" style="margin:6px 0">Asking prices on overseas dealer sites (Mascus, PlantAndEquipment), in US dollars. A machine that sells for more abroad than here is an export lead. These never count toward the US market value.</div>
       <div class="small">${(r.abroad_listings || []).map(x => `<div style="padding:5px 0;border-bottom:1px solid var(--line)"><b>${money(x.price)}</b> · ${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title)} <span class="muted">· ${[x.city, x.country_name].filter(Boolean).join(', ')}${x.hours ? ` · ${Number(x.hours).toLocaleString()} hrs` : ''} · ${esc(SOURCE_NAMES[x.source] || x.source)}</span></div>`).join('')}</div></details></div>` : ''}

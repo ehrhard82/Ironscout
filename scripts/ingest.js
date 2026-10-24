@@ -66,12 +66,33 @@ async function ingestSold(productId, term, { force = false } = {}) {
   return out;
 }
 
-async function ingestProduct(term, { sold = true } = {}) {
+// Apify bills per listing scraped, so don't keep asking a source that has nothing for this machine:
+// after EMPTY_STREAK runs in a row with zero usable rows (and no error), skip it for EMPTY_SKIP_DAYS.
+const EMPTY_STREAK = Number(process.env.SOURCE_EMPTY_STREAK || 3);
+const EMPTY_SKIP_DAYS = Number(process.env.SOURCE_EMPTY_SKIP_DAYS || 7);
+async function emptyStreak(productId, sourceName) {
+  if (!['govdeals', 'ironplanet', 'rbauction', 'machinio', 'mascus', 'proxibid'].includes(sourceName)) return null;   // only the paid ones
+  const r = await pool.query(`SELECT fetched, error, started_at FROM ingest_runs
+                              WHERE product_id = $1 AND source = $2 AND finished_at IS NOT NULL AND COALESCE(note, '') NOT LIKE 'skipped:%'
+                              ORDER BY started_at DESC LIMIT $3`, [productId, sourceName, EMPTY_STREAK]);
+  if (r.rows.length < EMPTY_STREAK || r.rows.some(x => x.error || Number(x.fetched) > 0)) return null;
+  const last = new Date(r.rows[0].started_at), until = new Date(last.getTime() + EMPTY_SKIP_DAYS * 86400000);
+  return until > new Date() ? until : null;
+}
+
+async function ingestProduct(term, { sold = true, force = false } = {}) {
   term = String(term || '').trim().toLowerCase();
   console.log(`\n=== ${term} ===`);
   const productId = await getOrCreateProduct(term);
 
   for (const src of sources) {
+    const until = force ? null : await emptyStreak(productId, src.name);
+    if (until) {
+      await pool.query('INSERT INTO ingest_runs (product_id, source, note, fetched, finished_at) VALUES ($1,$2,$3,0,NOW())',
+        [productId, src.name, `skipped: nothing here the last ${EMPTY_STREAK} runs; saving the Apify fee, will try again ${until.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`]).catch(() => {});
+      console.log(`  [${src.name}] skipped (empty ${EMPTY_STREAK}x, retry ${until.toISOString().slice(0, 10)})`);
+      continue;
+    }
     const run = await pool.query(
       'INSERT INTO ingest_runs (product_id, source, note) VALUES ($1,$2,$3) RETURNING id', [productId, src.name, 'starting…']);
     const runId = run.rows[0].id;
@@ -129,4 +150,4 @@ async function main() {
 if (require.main === module) {
   main().then(() => pool.end()).catch(e => { console.error(e); pool.end(); process.exit(1); });
 }
-module.exports = { ingestProduct, ingestSold, scheduledTerms, main };
+module.exports = { ingestProduct, ingestSold, scheduledTerms, main, emptyStreak };

@@ -188,7 +188,16 @@ async function blockListing(listingId, btn) {
     const card = btn && btn.closest('.card'); if (card) card.remove();
   } catch (e) { alert(e.message); }
 }
-const blockBtn = (listingId) => window.CAN_HIDE && listingId ? `<button onclick="blockListing('${listingId}', this)" title="Wrong kind of machine">Not this machine</button>` : '';
+const blockBtn = (listingId) => window.CAN_HIDE && listingId ? `<button onclick="blockListing('${listingId}', this)" title="Wrong kind of machine">Not this machine</button><button onclick="partsListing('${listingId}', this)" title="Forks, a bucket, tires, a cab… real, but not the machine">Parts / attachment</button>` : '';
+// Staff only: a part or attachment listed under the machine. Kept (in the Parts pile on the machine page), out of the price math.
+async function partsListing(listingId, btn) {
+  if (!confirm('Mark as a part / attachment? It moves to the "Parts & attachments" pile for this machine and stops counting toward the market value.')) return;
+  try {
+    const r = await api(`/api/broker/listings/${listingId}/parts`, { method: 'POST', body: {} });
+    const card = btn && btn.closest('.card'); if (card) card.remove();
+    if (r.marked > 1) alert(`${r.marked} listings with that exact title moved to Parts.`);
+  } catch (e) { alert(e.message); }
+}
 
 // ---- broker actions (used by broker.html; the page defines reloadDeals()) ----
 async function brokerAct(id, action, body) {

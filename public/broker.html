@@ -31,7 +31,7 @@
       <label style="margin-left:auto" class="small muted"><input type="checkbox" id="hasbuyer" onchange="reloadDeals()"> only deals a buyer is waiting for</label>
     </div>
     <div id="deals" class="grid"></div>
-    <details id="blocked-box" style="margin-top:18px"><summary class="small muted">Hidden listings (marked "Not this machine")</summary><div id="blocked" class="small" style="margin-top:8px"></div></details>
+    <details id="blocked-box" style="margin-top:18px"><summary class="small muted">Hidden listings ("Not this machine" and "Parts / attachment")</summary><div id="blocked" class="small" style="margin-top:8px"></div></details>
   </div>
 
   <div class="section" id="pane-followups" style="display:none">
@@ -85,7 +85,7 @@ async function load() {
 async function loadBlocked() {
   if (!window.CAN_HIDE) return;
   const rows = await api('/api/broker/blocked');
-  $('blocked').innerHTML = rows.length ? rows.map(r => `<div class="row" style="padding:4px 0"><span>${esc(r.title)} <span class="muted">(${esc(r.product || '')}, ${money(r.price)})</span></span><button style="margin-left:auto" onclick="restoreListing('${r.id}')">Restore</button></div>`).join('') : '<span class="muted">None.</span>';
+  $('blocked').innerHTML = rows.length ? rows.map(r => `<div class="row" style="padding:4px 0"><span>${r.kind === 'parts' ? '<span class="pill">parts</span> ' : ''}${esc(r.title)} <span class="muted">(${esc(r.product || '')}, ${money(r.price)})</span></span><button style="margin-left:auto" onclick="restoreListing('${r.id}')">Restore</button></div>`).join('') : '<span class="muted">None.</span>';
 }
 async function restoreListing(id) {
   try { await api(`/api/broker/listings/${id}/block`, { method: 'DELETE' }); await loadBlocked(); } catch (e) { alert(e.message); }

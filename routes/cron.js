@@ -43,14 +43,30 @@ async function markIngestDone() {
   console.log('[cron] daily refresh finished');
 }
 require('../lib/ingestQueue').onDone = markIngestDone;
+// Quiet machines refresh every other day: if the last full pass for a machine (within SLOW_HOURS) added
+// nothing new, it sits out today. Busy machines (anything new yesterday) keep refreshing daily.
+async function dueTerms(all, force) {
+  if (force) return all;
+  const slowHours = Number(process.env.INGEST_SLOW_HOURS || 40);
+  const r = await pool.query(`SELECT p.name, COALESCE(SUM(r.inserted), 0)::int AS added, COUNT(*)::int AS runs
+                              FROM products p JOIN ingest_runs r ON r.product_id = p.id
+                              WHERE p.name = ANY($1) AND r.source NOT LIKE '%:sold' AND r.finished_at IS NOT NULL AND r.error IS NULL
+                                AND r.started_at > NOW() - ($2 || ' hours')::interval AND r.started_at < NOW() - interval '12 hours'
+                              GROUP BY p.name`, [all, String(slowHours)]).catch(() => ({ rows: [] }));
+  const quiet = new Set(r.rows.filter(x => x.runs > 0 && x.added === 0).map(x => x.name));
+  const due = all.filter(t => !quiet.has(t));
+  if (quiet.size) console.log(`[cron] sitting out today (nothing new last pass): ${[...quiet].join(', ')}`);
+  return due;
+}
 async function runScheduledIngest(reason) {
-  const terms = await scheduledTerms();
+  const force = /forced|admin/i.test(reason);
+  const terms = await dueTerms(await scheduledTerms(), force);
   // Stamp "started" now (so two pings 5 min apart don't both start it), and stamp "done" when the
   // last machine finishes. A restart mid-run leaves only the start stamp, which expires after
   // INGEST_RETRY_MINUTES so the catch-up tries again.
   await pool.query(`INSERT INTO app_state (key, value, updated_at) VALUES ('ingest_started_at', $1, NOW())
                     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`, [new Date().toISOString()]);
-  for (const t of terms) ingestQueue.enqueue(t);          // one at a time, after anything already running
+  for (const t of terms) ingestQueue.enqueue(t, { force }); // one at a time, after anything already running
   ingestQueue.enqueue('__done__');                        // sentinel: runs after the last machine
   deactivateStale(14).catch(() => {});
   console.log(`[cron] daily refresh started (${reason}): ${terms.length} machine(s)`);

@@ -280,6 +280,9 @@ CREATE TABLE IF NOT EXISTS listing_blocks (
 ALTER TABLE listing_blocks ADD COLUMN IF NOT EXISTS org_id INTEGER REFERENCES organizations(id) ON DELETE CASCADE;
 ALTER TABLE listing_blocks DROP CONSTRAINT IF EXISTS listing_blocks_pkey;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_listing_blocks_uq ON listing_blocks (listing_id, COALESCE(org_id, 0));
+-- kind: 'hide' = wrong machine, gone; 'parts' = real listing but a part/attachment/tire set: kept in a
+-- separate "Parts & attachments" pile on the machine page, never in the market value or the deals.
+ALTER TABLE listing_blocks ADD COLUMN IF NOT EXISTS kind VARCHAR(10) DEFAULT 'hide';
 
 ALTER TABLE broker_interactions ADD COLUMN IF NOT EXISTS org_id INTEGER;
 

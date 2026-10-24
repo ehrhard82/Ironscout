@@ -14,7 +14,7 @@ router.post('/ingest', async (req, res, next) => {
   try {
     const product = (req.body?.product || '').trim();
     if (!product) return res.status(400).json({ error: 'product is required' });
-    const q = ingestQueue.enqueue(product);       // respond immediately; work continues in the background
+    const q = ingestQueue.enqueue(product, { force: true });       // respond immediately; work continues in the background
     res.json({ started: product, ...q, ...ingestQueue.status() });
   } catch (e) { next(e); }
 });

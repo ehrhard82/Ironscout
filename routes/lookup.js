@@ -6,6 +6,7 @@
 //   - whether it's on their watchlist
 // If nothing matches, says so and offers to request it.
 const { COUNTRY_NAME } = require('../lib/sources/plantandequipment');
+const { JUNK_SQL, ATTACH_SQL } = require('../lib/pricing');
 const router = require('express').Router();
 const pool = require('../lib/db');
 const { requireAccess } = require('../lib/auth');
@@ -40,7 +41,7 @@ router.get('/', requireAccess, async (req, res, next) => {
     const f = ignoreSettings ? { product_id: product.id } : effective(u, { product_id: product.id });
 
     const params = [req.user.id];
-    const [market, deals, counts, abroadRows, watched, salesRows, salesCount] = await Promise.all([
+    const [market, deals, counts, abroadRows, partsRows, watched, salesRows, salesCount] = await Promise.all([
       pool.query(`SELECT region_type, region, median_price, p25_price, p75_price, min_price, max_price, sample_size, basis
                   FROM market_stats WHERE product_id = $1 ORDER BY region_type, sample_size DESC`, [product.id]),
       pool.query(`SELECT ${DEAL_COLS}, (sd.deal_id IS NOT NULL) AS saved${isStaff(req.user) ? ', ' + buyersSql(req.user) : ''}
@@ -53,6 +54,13 @@ router.get('/', requireAccess, async (req, res, next) => {
                   FROM listings l LEFT JOIN deals d ON d.listing_id = l.id WHERE l.product_id = $1 AND COALESCE(l.country,'US') = 'US' AND l.id NOT IN ${blockedSql(u)}`, [product.id]),
       pool.query(`SELECT id, title, price::float AS price, year, hours, city, country, url, image_url, source, posted_date FROM listings
                   WHERE product_id = $1 AND is_active AND COALESCE(country,'US') <> 'US' ORDER BY price DESC LIMIT 40`, [product.id]),
+      pool.query(`SELECT l.id, l.title, l.price::float AS price, l.year, l.city, l.state, l.url, l.source,
+                         (b.listing_id IS NOT NULL) AS marked
+                  FROM listings l LEFT JOIN listing_blocks b ON b.listing_id = l.id AND b.org_id IS NULL AND b.kind = 'parts'
+                  WHERE l.product_id = $1 AND l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()) AND NOT (${JUNK_SQL.replace(/\btitle\b/g, 'l.title')})
+                    AND (b.listing_id IS NOT NULL OR (${ATTACH_SQL.replace(/\btitle\b/g, 'l.title')}))
+                    AND l.id NOT IN (SELECT listing_id FROM listing_blocks WHERE kind = 'hide' AND (org_id IS NULL${u.org_id ? ` OR org_id = ${Number(u.org_id)}` : ''}))
+                  ORDER BY b.listing_id IS NULL, l.price ASC LIMIT 60`, [product.id]),
       pool.query('SELECT 1 FROM watchlists WHERE user_id = $1 AND product_id = $2', [req.user.id, product.id]),
       pool.query(`SELECT title, price, year, hours, city, state, url, source, sold_at FROM sales
                   WHERE product_id = $1 ORDER BY sold_at DESC NULLS LAST, first_seen DESC LIMIT 60`, [product.id]),
@@ -70,6 +78,7 @@ router.get('/', requireAccess, async (req, res, next) => {
                 basis: us?.basis || 'asking', by_state: market.rows.filter(r => r.region_type === 'state'),
                 abroad: market.rows.filter(r => r.region_type === 'abroad').map(r => ({ ...r, country: COUNTRY_NAME[r.region] || r.region })) },
       abroad_listings: abroadRows.rows.map(l => ({ ...l, country_name: COUNTRY_NAME[l.country] || l.country })),
+      parts_listings: partsRows.rows,
       sales_count: salesCount.rows[0].n, sales_recent: salesCount.rows[0].recent, sold_window_days: Number(process.env.SOLD_WINDOW_DAYS || 120), sold_min: Number(process.env.MIN_SAMPLE_SIZE || 5), recent_sales: salesRows.rows,
       ...counts.rows[0],
       filters_applied: !ignoreSettings, filters: ignoreSettings ? null : f,
