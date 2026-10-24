@@ -252,7 +252,7 @@ router.post('/refresh-all', async (req, res, next) => {
     const cron = require('./cron');
     const since = (Date.now() - await cron.lastScheduledIngest()) / 3600000;
     const terms = await cron.runScheduledIngest(`admin button (${req.user.email})`);
-    require('../lib/activity').log(req.user, 'started full refresh', `${terms.length} machines`).catch(() => {});
+    require('../lib/activity').log(req.user, 'started full refresh', `${terms.length} machines`);
     res.json({ started: true, machines: terms, last_run_hours_ago: Math.round(since * 10) / 10 });
   } catch (e) { next(e); }
 });
