@@ -184,8 +184,9 @@ router.get('/debug/sources', async (req, res) => {
     try {
       const r = await rawSample(s.name, q, 1);
       const m = r.mapped[0];
-      return { source: s.name, ok: r.count > 0, items: r.count, run_status: r.run_status, seconds: Math.round((Date.now() - t0) / 1000),
-        first: m ? `${m.year || ''} ${m.title || ''} — $${m.price || '?'} — ${m.city || ''} ${m.state || ''}`.trim() : null };
+      return { source: s.name, ok: r.count > 0, items: r.count, usable: r.usable, run_status: r.run_status, seconds: Math.round((Date.now() - t0) / 1000),
+        first: m ? `${m.year || ''} ${m.title || ''} — $${m.price || '?'} — ${m.city || ''} ${m.state || ''}${m.raw_location && !m.city ? m.raw_location : ''}`.trim()
+                 : (r.count ? 'none usable (no US price among the sample — normal for a small test)' : null) };
     } catch (e) {
       return { source: s.name, ok: false, seconds: Math.round((Date.now() - t0) / 1000), error: e.response ? `${e.response.status} ${JSON.stringify(e.response.data).slice(0, 300)}` : e.message };
     }

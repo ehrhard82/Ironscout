@@ -186,7 +186,7 @@ $('test-btn').onclick = async () => {
   try {
     const r = await api('/api/admin/debug/sources?q=' + encodeURIComponent($('ingest-term').value.trim() || 'wheel loader'));
     $('test-out').innerHTML = `<div class="muted">token ${r.token_present ? 'present' : 'MISSING'} · APIFY_SOURCES=${esc(r.apify_sources_env)}</div>` +
-      (r.results.map(x => `<div>${x.ok ? '✅' : '❌'} <b>${esc(x.source)}</b> — ${x.ok ? `${x.items} items in ${x.seconds}s: ${esc(x.first || '')}` : `<span style="color:var(--warn)">${esc(x.error || `0 items (${x.run_status || 'no run'}) in ${x.seconds}s`)}</span>`}</div>`).join('') || '<div>No Apify sources enabled.</div>');
+      (r.results.map(x => `<div>${x.ok ? '✅' : '❌'} <b>${esc(x.source)}</b> — ${x.ok ? `${x.items} items${x.usable != null && x.usable !== x.items ? ` (${x.usable} usable)` : ''} in ${x.seconds}s: ${esc(x.first || '')}` : `<span style="color:var(--warn)">${esc(x.error || `0 items (${x.run_status || 'no run'}) in ${x.seconds}s`)}</span>`}</div>`).join('') || '<div>No Apify sources enabled.</div>');
   } catch (e) { $('test-out').textContent = 'Test failed: ' + e.message; }
 };
 $('sold-btn').onclick = async () => { const t = $('ingest-term').value.trim(); if (!t) return; try { await api('/api/admin/ingest-sold', { method: 'POST', body: { product: t } }); $('ingest-msg').textContent = `Fetching sold prices for "${t}"… check runs in a few minutes.`; } catch (e) { alert(e.message); } };
