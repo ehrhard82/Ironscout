@@ -1,17 +1,32 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Admin · IronScout</title><link rel="manifest" href="/manifest.json"><link rel="apple-touch-icon" href="/icons/icon-180.png"><meta name="theme-color" content="#0f1115"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="IronScout"><link rel="stylesheet" href="/app.css"></head><body>
+<title>Admin · IronScout</title><link rel="manifest" href="/manifest.json"><link rel="apple-touch-icon" href="/icons/icon-180.png"><meta name="theme-color" content="#0f1115"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="IronScout"><link rel="stylesheet" href="/app.css">
+<style>
+  details.section > summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:8px; padding:6px 0; }
+  details.section > summary::-webkit-details-marker { display:none; }
+  details.section > summary h2 { margin:0; }
+  details.section > summary::before { content:"▸"; color:var(--muted); font-size:14px; width:14px; transition:transform .15s; }
+  details.section[open] > summary::before { transform:rotate(90deg); }
+  details.section { margin-bottom:10px; }
+  .jumps { position:sticky; top:0; z-index:5; background:var(--bg); display:flex; gap:6px; overflow-x:auto; padding:8px 0 10px; margin:-8px 0 8px; border-bottom:1px solid var(--line); -webkit-overflow-scrolling:touch; }
+  .jumps a { white-space:nowrap; font-size:13px; color:var(--text); background:#1c2029; border:1px solid var(--line); border-radius:999px; padding:5px 11px; text-decoration:none; }
+  #totop { position:fixed; right:14px; bottom:18px; width:44px; height:44px; border-radius:50%; background:var(--accent); color:#1a1200; border:0; font-size:20px; font-weight:700; box-shadow:0 4px 14px rgba(0,0,0,.4); display:none; z-index:6; min-height:0; padding:0; }
+  #totop.show { display:block; }
+</style></head><body>
 <header id="hdr"></header>
 <main>
-  <div class="section"><h2>Fetch listings</h2><div class="card"><div class="row">
+  <div class="jumps" id="jumps">
+    <a href="#sec-fetch">Fetch</a><a href="#sec-import">Import</a><a href="#sec-requests">Requests</a><a href="#sec-companies">Companies</a><a href="#sec-users">Users</a><a href="#sec-prospects">Prospects</a><a href="#sec-activity">Activity</a><a href="#sec-email">Email</a><a href="#sec-runs">Runs</a>
+  </div>
+  <details class="section" id="sec-fetch"><summary><h2>Fetch listings</h2></summary><div class="card"><div class="row">
     <input id="ingest-term" placeholder="machine to fetch (e.g. dozer)" list="products"><datalist id="products"></datalist>
     <button class="primary" id="ingest-btn">Fetch now</button>
     <button id="sold-btn" title="Pull completed sales (hammer prices) for this machine now">Fetch sold prices</button>
     <button id="recalc-btn" title="Rebuild deals from existing listings without fetching">Recalculate deals</button>
     <button id="alerts-btn" title="Send any due hourly/daily/weekly digests now">Send due alerts</button>
     <span id="ingest-msg" class="ok small"></span>
-  </div><div class="muted small" style="margin-top:8px">Fetching costs Apify credit per listing. The scheduler already does this for TRACKED_PRODUCTS; use this for one-offs.</div></div></div>
+  </div><div class="muted small" style="margin-top:8px">Fetching costs Apify credit per listing. The scheduler already does this for TRACKED_PRODUCTS; use this for one-offs.</div></div></details>
 
-  <div class="section"><h2>Import sold prices</h2><div class="card">
+  <details class="section" id="sec-import"><summary><h2>Import sold prices</h2></summary><div class="card">
     <div class="muted small">Load a dealer's own sold history so market values are backed by real sales. A spreadsheet saved as CSV with a header row: <b>machine, title, price</b> required; <b>sold_date, year, hours, city, state, url, serial</b> optional. Example:</div>
     <pre class="small" style="white-space:pre-wrap;background:#0b0d12;padding:8px;border-radius:8px">machine,title,price,sold_date,year,hours,city,state
 frac pump,2014 SPM QWS 2500 frac pump on Kenworth T800,185000,2026-08-14,2014,,Levelland,TX
@@ -19,17 +34,17 @@ winch truck,2016 Peterbilt 367 winch truck,98500,2026-09-02,2016,210000,Odessa,T
     <div class="row" style="margin-top:8px"><input id="imp-source" placeholder="source name (e.g. repforce)" style="min-width:160px"><input type="file" id="imp-file" accept=".csv,text/csv"><a class="small" href="/sales-template.csv" download>Download template</a><span class="muted small">or paste rows below</span></div>
     <textarea id="imp-text" rows="4" style="width:100%;margin-top:8px" placeholder="machine,title,price,sold_date,..."></textarea>
     <div class="row" style="margin-top:8px"><button class="primary" id="imp-btn">Import</button><span id="imp-msg" class="small"></span></div>
-  </div></div>
+  </div></details>
 
-  <div class="section"><h2>Requests from subscribers</h2><div class="card"><table id="requests"><thead><tr><th>Machine</th><th>From</th><th>When</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div></div>
+  <details class="section" id="sec-requests"><summary><h2>Requests from subscribers</h2></summary><div class="card"><table id="requests"><thead><tr><th>Machine</th><th>From</th><th>When</th><th>Status</th><th></th></tr></thead><tbody></tbody></table></div></details>
 
-  <div class="section"><h2>Companies</h2><div class="card">
+  <details class="section" id="sec-companies"><summary><h2>Companies</h2></summary><div class="card">
     <p class="muted small" style="margin-top:0">Everyone in a company shares claims and sees each other's claims. Companies never see each other's. Change a person's company in the Users list below.</p>
     <div id="orgs"></div>
     <div class="row" style="margin-top:10px"><input id="no-name" placeholder="New company name" style="flex:1"><button id="no-btn">Add company</button></div>
-  </div></div>
+  </div></details>
 
-  <div class="section"><h2>Users</h2><div class="card">
+  <details class="section" id="sec-users"><summary><h2>Users</h2></summary><div class="card">
     <div class="row" style="margin-bottom:10px"><input id="nu-email" placeholder="email" type="email" autocapitalize="none" style="flex:1 1 100%"><input id="nu-pw" placeholder="password (8+ characters)" style="flex:1 1 100%"><input id="nu-name" placeholder="name" style="flex:1 1 100%">
       <select id="nu-org"><option value="">new company for this person</option></select><select id="nu-role"><option>subscriber</option><option>agent</option><option>broker</option><option>admin</option></select><button id="nu-btn">Create account</button><span id="nu-msg" class="err small"></span></div>
     <div id="user-edit" hidden style="background:#121922;border:1px solid var(--accent);border-radius:10px;padding:12px;margin-bottom:12px">
@@ -44,30 +59,41 @@ winch truck,2016 Peterbilt 367 winch truck,98500,2026-09-02,2016,210000,Odessa,T
       </div>
     </div>
     <table id="users"><thead><tr><th>Email</th><th>Role</th><th>Company</th><th>Subscription</th><th>Machines</th><th>Last login</th><th></th></tr></thead><tbody></tbody></table>
-  </div></div>
+  </div></details>
 
-  <div class="section"><h2>Prospects — dealers selling what we track</h2><div class="card">
+  <details class="section" id="sec-prospects"><summary><h2>Prospects — dealers selling what we track</h2></summary><div class="card">
     <p class="muted small" style="margin-top:0">Every dealer seen on Machinio (and eBay/Craigslist when on) listing a tracked machine: who, where, what they sell, and a phone or email when the listing carried one. These are the people to call. Auction-site sellers aren't included (they're anonymous).</p>
     <div class="row" style="margin-bottom:10px"><input id="pr-states" placeholder="States (TX, OK, NM) — blank = all" style="flex:1 1 180px"><button id="pr-load">Show</button><a id="pr-csv" class="small" href="/api/admin/prospects.csv">Download spreadsheet</a></div>
     <table id="prospects"><thead><tr><th>Dealer</th><th>Where</th><th>Contact</th><th>Listing</th><th>Machines</th><th>Last seen</th></tr></thead><tbody><tr><td colspan="6" class="muted">Tap Show.</td></tr></tbody></table>
-  </div></div>
+  </div></details>
 
-  <div class="section"><h2>What people are doing</h2><div class="card">
+  <details class="section" id="sec-activity"><summary><h2>What people are doing</h2></summary><div class="card">
     <div class="row" style="margin-bottom:8px"><select id="act-who"><option value="">everyone</option></select><span class="muted small">Logins, lookups, buyers added, claims. Newest first.</span></div>
     <div id="activity" class="small"></div>
-  </div></div>
+  </div></details>
 
-  <div class="section"><h2>Email</h2><div class="card"><div class="row"><button id="mail-btn">Send me a test email</button><span id="mail-msg" class="small"></span></div></div></div>
+  <details class="section" id="sec-email"><summary><h2>Email</h2></summary><div class="card"><div class="row"><button id="mail-btn">Send me a test email</button><span id="mail-msg" class="small"></span></div></div></details>
 
-  <div class="section"><h2>Recent ingest runs</h2><div class="card">
+  <details class="section" id="sec-runs"><summary><h2>Recent ingest runs</h2></summary><div class="card">
     <div class="muted small" style="margin-bottom:8px">This server: <b id="host"></b> · Active sources: <b id="sources">…</b> <span id="busy"></span></div>
     <div class="row" style="margin-bottom:10px"><button id="test-btn">Test sources now</button><button id="refresh-btn">Refresh</button><span class="muted small">The test takes 1–2 minutes and fetches 5 items per source.</span></div>
     <div id="test-out" class="small" style="margin-bottom:10px"></div>
-    <div id="runs"></div></div></div>
+    <div id="runs"></div></div></details>
 </main>
+<button id="totop" title="Back to top" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
 <script src="/app.js"></script>
 <script>
 let openOrg = null;
+// Sections collapse to keep the page short; remember which ones you left open, and open the one you jump to.
+(function () {
+  const all = [...document.querySelectorAll('details.section')];
+  let saved = null; try { saved = JSON.parse(localStorage.getItem('admin-open') || 'null'); } catch {}
+  for (const d of all) d.open = saved ? saved.includes(d.id) : d.id === 'sec-fetch';
+  document.addEventListener('toggle', () => { try { localStorage.setItem('admin-open', JSON.stringify(all.filter(d => d.open).map(d => d.id))); } catch {} }, true);
+  document.getElementById('jumps').addEventListener('click', (e) => { const a = e.target.closest('a'); if (!a) return; const d = document.querySelector(a.getAttribute('href')); if (d) d.open = true; });
+  const top = document.getElementById('totop');
+  addEventListener('scroll', () => top.classList.toggle('show', scrollY > 600), { passive: true });
+})();
 async function load() {
   const user = await requireUser();
   if (user.role !== 'admin') { location.href = '/'; return; }
