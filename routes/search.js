@@ -53,10 +53,11 @@ router.get('/machine', async (req, res, next) => {
     const ms = await pool.query(`SELECT median_price, p25_price, p75_price, sample_size, basis FROM market_stats WHERE product_id = $1 AND region_type = 'country'`, [pid]);
     const normal = ms.rows[0] ? Number(ms.rows[0].median_price) : null;
     const r = await pool.query(`
-      SELECT l.id, l.title, l.price::float AS price, l.year, l.hours, l.city, l.state, l.url, l.image_url, l.source, l.sale_type,
+      SELECT l.id, l.title, l.price::float AS price, l.year, l.hours, l.city, l.state, l.country, l.url, l.image_url, l.source, l.sale_type,
              l.auction_ends, l.posted_date, d.market_price::float AS deal_market, d.deal_score
       FROM listings l LEFT JOIN deals d ON d.listing_id = l.id AND ${notPassedSql(req.user)}
       WHERE l.product_id = $1 AND l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW())
+        AND COALESCE(l.country,'US') ${req.query.abroad === '1' ? '<>' : '='} 'US'
         AND NOT (${JUNK_SQL}) AND NOT (${ATTACH_SQL}) AND l.id NOT IN ${blockedSql(req.user)}
       ORDER BY l.price ASC LIMIT 600`, [pid]);
     const listings = require('../lib/dedupe').dedupe(r.rows, (a, b) => (b.deal_score || 0) - (a.deal_score || 0)).map(l => {

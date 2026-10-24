@@ -191,6 +191,15 @@ router.get('/debug/sources', async (req, res) => {
       return { source: s.name, ok: false, seconds: Math.round((Date.now() - t0) / 1000), error: e.response ? `${e.response.status} ${JSON.stringify(e.response.data).slice(0, 300)}` : e.message };
     }
   }));
+  // free (non-Apify) sources, read directly from this server
+  const pe = require('../lib/sources/plantandequipment');
+  const t0 = Date.now();
+  try {
+    const rows = await pe.fetch(q);
+    const m = rows[0];
+    out.results.push({ source: 'plantandequipment', ok: rows.length > 0 || Boolean(rows.note), items: rows.returned || rows.length, usable: rows.length, seconds: Math.round((Date.now() - t0) / 1000),
+      first: m ? `${m.year || ''} ${m.title} — $${m.price} — ${[m.city, pe.COUNTRY_NAME[m.country] || m.country].filter(Boolean).join(', ')}` : (rows.note || 'no listings parsed') });
+  } catch (e) { out.results.push({ source: 'plantandequipment', ok: false, seconds: Math.round((Date.now() - t0) / 1000), error: e.response ? `${e.response.status} from plantandequipment.com` : e.message }); }
   res.json(out);
 });
 
@@ -233,6 +242,25 @@ router.post('/import-sales', express.text({ type: '*/*', limit: '5mb' }), async 
     }
     for (const pid of touched) await recalculateProduct(pid);
     res.json({ imported: ok, skipped, machines: touched.size, problems });
+  } catch (e) { next(e); }
+});
+
+// GET /api/admin/prospects/world[.csv]?country=AE,SA  — overseas dealers from PlantAndEquipment's directory (names + country;
+// the site keeps phones behind a login, so these are leads to look up, not a call sheet).
+router.get(['/prospects/world', '/prospects/world.csv'], async (req, res, next) => {
+  try {
+    const pe = require('../lib/sources/plantandequipment');
+    const want = String(req.query.country || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+    let rows = await pe.dealers();
+    if (want.length) rows = rows.filter(r => want.includes(r.country_code));
+    rows.sort((a, b) => (b.inventory || 0) - (a.inventory || 0));
+    if (req.path.endsWith('.csv')) {
+      const cols = ['name', 'country', 'inventory', 'url'];
+      const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      res.setHeader('Content-Type', 'text/csv'); res.setHeader('Content-Disposition', 'attachment; filename="ironscout-world-dealers.csv"');
+      return res.send(cols.join(',') + '\n' + rows.map(x => cols.map(c => q(x[c])).join(',')).join('\n'));
+    }
+    res.json({ count: rows.length, dealers: rows, countries: [...new Set(rows.map(r => r.country).filter(Boolean))].sort() });
   } catch (e) { next(e); }
 });
 

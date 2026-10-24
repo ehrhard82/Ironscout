@@ -65,6 +65,10 @@ winch truck,2016 Peterbilt 367 winch truck,98500,2026-09-02,2016,210000,Odessa,T
     <p class="muted small" style="margin-top:0">Every dealer seen on Machinio (and eBay/Craigslist when on) listing a tracked machine: who, where, what they sell, and a phone or email when the listing carried one. These are the people to call. Auction-site sellers aren't included (they're anonymous).</p>
     <div class="row" style="margin-bottom:10px"><input id="pr-states" placeholder="States (TX, OK, NM) — blank = all" style="flex:1 1 180px"><button id="pr-load">Show</button><a id="pr-csv" class="small" href="/api/admin/prospects.csv">Download spreadsheet</a></div>
     <table id="prospects"><thead><tr><th>Dealer</th><th>Where</th><th>Contact</th><th>Listing</th><th>Machines</th><th>Last seen</th></tr></thead><tbody><tr><td colspan="6" class="muted">Tap Show.</td></tr></tbody></table>
+    <h3 style="margin:18px 0 6px">World — overseas dealers (export buyers)</h3>
+    <p class="muted small" style="margin-top:0">Equipment dealers listed on PlantAndEquipment.com, the Dubai-based marketplace: name, country and how many machines they carry. Phones aren't public there, so these are leads to look up (company name + country finds a WhatsApp number fast). Biggest dealers first.</p>
+    <div class="row" style="margin-bottom:10px"><input id="wp-country" placeholder="Country codes (AE, SA, QA) — blank = all" style="flex:1 1 180px"><button id="wp-load">Show</button><a id="wp-csv" class="small" href="/api/admin/prospects/world.csv">Download spreadsheet</a></div>
+    <table id="wprospects"><thead><tr><th>Dealer</th><th>Country</th><th>Machines listed</th><th></th></tr></thead><tbody><tr><td colspan="4" class="muted">Tap Show (first load reads the directory, ~30 s).</td></tr></tbody></table>
   </div></details>
 
   <details class="section" id="sec-activity"><summary><h2>What people are doing</h2></summary><div class="card">
@@ -202,6 +206,15 @@ $('pr-load').onclick = async () => {
     <td>${p.phone ? `<a href="tel:${esc(p.phone)}">${esc(p.phone)}</a>` : ''}${p.phone && p.email ? '<br>' : ''}${p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : ''}${!p.phone && !p.email ? '<span class="muted">via listing</span>' : ''}</td>
     <td>${p.active_listings} live${p.example_listing ? ` · <a href="${esc(p.example_listing)}" target="_blank" rel="noopener">open one</a>` : ''}</td><td class="small">${esc(p.machines)}</td><td class="muted small">${p.last_seen ? new Date(p.last_seen).toLocaleDateString() : ''}</td></tr>`).join('')
     : '<tr><td colspan="6" class="muted">No dealers found for those states yet.</td></tr>';
+};
+$('wp-load').onclick = async () => {
+  const c = $('wp-country').value.trim(); $('wp-csv').href = '/api/admin/prospects/world.csv' + (c ? '?country=' + encodeURIComponent(c) : '');
+  $('wprospects').querySelector('tbody').innerHTML = '<tr><td colspan="4" class="muted">Reading the directory…</td></tr>';
+  try {
+    const r = await api('/api/admin/prospects/world' + (c ? '?country=' + encodeURIComponent(c) : ''));
+    $('wprospects').querySelector('tbody').innerHTML = r.dealers.length ? r.dealers.map(d => `<tr><td><b>${esc(d.name)}</b></td><td>${esc(d.country || '')}</td><td>${d.inventory ?? ''}</td><td><a href="${esc(d.url)}" target="_blank" rel="noopener">open</a></td></tr>`).join('')
+      : '<tr><td colspan="4" class="muted">No dealers found.</td></tr>';
+  } catch (e) { $('wprospects').querySelector('tbody').innerHTML = `<tr><td colspan="4" style="color:var(--warn)">${esc(e.message)}</td></tr>`; }
 };
 $('mail-btn').onclick = async () => { $('mail-msg').className = 'small muted'; $('mail-msg').textContent = 'Sending…'; try { const r = await api('/api/admin/test-email', { method: 'POST', body: {} }); $('mail-msg').className = 'small ok'; $('mail-msg').textContent = 'Sent to ' + r.to + ' — check your inbox (and spam).'; } catch (e) { $('mail-msg').className = 'small err'; $('mail-msg').textContent = e.message; } };
 $('nu-btn').onclick = async () => { $('nu-msg').textContent = ''; try { await api('/api/admin/users', { method: 'POST', body: { email: $('nu-email').value, password: $('nu-pw').value, name: $('nu-name').value, role: $('nu-role').value, org_id: $('nu-org').value || null } }); $('nu-email').value = $('nu-pw').value = $('nu-name').value = ''; load(); } catch (e) { $('nu-msg').textContent = e.message; } };
