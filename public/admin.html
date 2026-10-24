@@ -20,6 +20,7 @@
   <details class="section" id="sec-fetch"><summary><h2>Fetch listings</h2></summary><div class="card"><div class="row">
     <input id="ingest-term" placeholder="machine to fetch (e.g. dozer)" list="products"><datalist id="products"></datalist>
     <button class="primary" id="ingest-btn">Fetch now</button>
+    <button id="refresh-all-btn" title="Same thing the 6 AM job does: every watched machine, one after another">Refresh every machine</button>
     <button id="sold-btn" title="Pull completed sales (hammer prices) for this machine now">Fetch sold prices</button>
     <button id="recalc-btn" title="Rebuild deals from existing listings without fetching">Recalculate deals</button>
     <button id="alerts-btn" title="Send any due hourly/daily/weekly digests now">Send due alerts</button>
@@ -171,6 +172,11 @@ function renderActivity() {
   $('activity').innerHTML = rows.length ? rows.map(a => `<div style="padding:5px 0;border-bottom:1px solid var(--line)"><span class="muted">${new Date(a.at).toLocaleString(undefined, { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span> <b>${esc(a.name || a.email.split('@')[0])}</b> ${esc(a.action)}${a.detail ? `: <span class="muted">${esc(a.detail)}</span>` : ''}</div>`).join('') : '<div class="muted">Nothing yet.</div>';
 }
 async function patchUser(id, body) { try { await api('/api/admin/users/' + id, { method: 'PATCH', body }); load(); } catch (e) { alert(e.message); } }
+$('refresh-all-btn').onclick = async () => {
+  if (!confirm('Refresh every watched machine now? This is the daily run (uses Apify budget) and takes a while.')) return;
+  try { const r = await api('/api/admin/refresh-all', { method: 'POST', body: {} }); $('ingest-msg').textContent = `Refreshing ${r.machines.length} machines, one after another (last full run was ${r.last_run_hours_ago} h ago). Watch Status → Running now.`; }
+  catch (e) { alert(e.message); }
+};
 $('ingest-btn').onclick = async () => { const t = $('ingest-term').value.trim(); if (!t) return; try { await api('/api/admin/ingest', { method: 'POST', body: { product: t } }); $('ingest-msg').textContent = `Fetching "${t}"… check runs in a minute.`; } catch (e) { alert(e.message); } };
 $('refresh-btn').onclick = () => load();
 $('imp-btn').onclick = async () => {

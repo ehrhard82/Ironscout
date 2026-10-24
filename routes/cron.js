@@ -91,3 +91,5 @@ router.get('/alerts', (req, res) => {
 router.get('/ping', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
 module.exports = router;
+module.exports.runScheduledIngest = runScheduledIngest;
+module.exports.lastScheduledIngest = lastScheduledIngest;

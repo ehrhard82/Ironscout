@@ -245,6 +245,26 @@ router.post('/import-sales', express.text({ type: '*/*', limit: '5mb' }), async 
   } catch (e) { next(e); }
 });
 
+// POST /api/admin/refresh-all  — the same daily refresh the 6am job runs, started from the Admin page
+// (no cron key needed; you're already logged in as admin). GET returns when it last ran.
+router.post('/refresh-all', async (req, res, next) => {
+  try {
+    const cron = require('./cron');
+    const since = (Date.now() - await cron.lastScheduledIngest()) / 3600000;
+    const terms = await cron.runScheduledIngest(`admin button (${req.user.email})`);
+    require('../lib/activity').log(req.user, 'started full refresh', `${terms.length} machines`).catch(() => {});
+    res.json({ started: true, machines: terms, last_run_hours_ago: Math.round(since * 10) / 10 });
+  } catch (e) { next(e); }
+});
+router.get('/refresh-all', async (req, res, next) => {
+  try {
+    const cron = require('./cron');
+    const last = await cron.lastScheduledIngest();
+    const r = await pool.query(`SELECT key, value FROM app_state WHERE key IN ('last_ingest_at', 'ingest_started_at')`).catch(() => ({ rows: [] }));
+    res.json({ last_run: last ? new Date(last).toISOString() : null, ...Object.fromEntries(r.rows.map(x => [x.key, x.value])), queue: require('../lib/ingestQueue').status() });
+  } catch (e) { next(e); }
+});
+
 // GET /api/admin/prospects/world[.csv]?country=AE,SA  — overseas dealers from PlantAndEquipment's directory (names + country;
 // the site keeps phones behind a login, so these are leads to look up, not a call sheet).
 router.get(['/prospects/world', '/prospects/world.csv'], async (req, res, next) => {
