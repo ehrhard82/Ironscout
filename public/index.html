@@ -18,9 +18,10 @@
   .heading h3 { margin:0; font-size:18px; } .heading .small a { color:var(--muted); }
   main { max-width:1200px; margin:0 auto; }
   .sortrow { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-  .sortrow .viewtoggle { flex:0 0 auto; }
-  .sortrow label { display:flex; align-items:center; gap:6px; min-width:0; flex:1 1 0; }
-  .sortrow select { min-width:0; width:100%; padding:8px 8px; font-size:14px; }
+  .sortrow .viewtoggle { flex:0 0 auto; margin-left:auto; }
+  .sortrow label { display:flex; align-items:center; gap:6px; flex:1 1 150px; min-width:150px; }
+  .sortrow select { flex:1 1 auto; min-width:110px; width:auto; padding:8px 8px; font-size:14px; }
+  @media (max-width:480px) { .sortrow .viewtoggle { flex:1 1 100%; margin-left:0; display:flex; } .sortrow .viewtoggle button { flex:1; } }
   .setup { max-width:760px; margin:0 auto 10px; padding:0 20px; }
   .setup .card { gap:4px; }
   .setup h3 { margin:0 0 4px; font-size:16px; }
