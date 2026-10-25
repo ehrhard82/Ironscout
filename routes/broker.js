@@ -19,8 +19,13 @@ async function logAction(dealId, req, action, notes) {
   await pool.query('INSERT INTO broker_interactions (deal_id, broker_id, action, notes, org_id) VALUES ($1,$2,$3,$4,$5)',
     [dealId, req.user.email, action, notes || null, req.user.org_id || null]);
 }
-async function dealRow(id) {
-  return (await pool.query('SELECT d.id, d.listing_id, l.auction_ends FROM deals d JOIN listings l ON l.id = d.listing_id WHERE d.id = $1', [id])).rows[0];
+// Deal ids are rebuilt on every refresh, so a card loaded before a refresh can point at an id that's gone.
+// Claims live on the listing anyway: fall back to the listing id the card also sends.
+async function dealRow(id, listingId) {
+  const byDeal = Number.isInteger(Number(id)) ? (await pool.query('SELECT d.id, d.listing_id, l.auction_ends FROM deals d JOIN listings l ON l.id = d.listing_id WHERE d.id = $1', [id])).rows[0] : null;
+  if (byDeal || !listingId || !/^[0-9a-f-]{36}$/i.test(String(listingId))) return byDeal;
+  return (await pool.query(`SELECT d.id, l.id AS listing_id, l.auction_ends FROM listings l LEFT JOIN deals d ON d.listing_id = l.id
+                            WHERE l.id = $1 ORDER BY d.id DESC NULLS LAST LIMIT 1`, [listingId])).rows[0];
 }
 
 // "Not this machine": hide a wrong match. Admin hides it for everyone (and out of market values);
@@ -112,7 +117,7 @@ router.get('/dashboard', async (req, res, next) => {
 // If a teammate already holds it, the answer is 409 until the request says confirm:true.
 router.post('/deals/:id/claim', async (req, res, next) => {
   try {
-    const d = await dealRow(req.params.id);
+    const d = await dealRow(req.params.id, req.body?.listing_id);
     if (!d) return res.status(404).json({ error: 'Deal not found' });
     const org = req.user.org_id;
     if (!org) return res.status(400).json({ error: 'Your account has no company yet - ask the admin' });
@@ -143,7 +148,7 @@ router.post('/deals/:id/claim', async (req, res, next) => {
 
 router.post('/deals/:id/sold', async (req, res, next) => {
   try {
-    const d = await dealRow(req.params.id);
+    const d = await dealRow(req.params.id, req.body?.listing_id);
     if (!d) return res.status(404).json({ error: 'Deal not found' });
     const salePrice = Number(req.body?.salePrice);
     if (!salePrice) return res.status(400).json({ error: 'salePrice is required' });
@@ -162,7 +167,7 @@ router.post('/deals/:id/sold', async (req, res, next) => {
 
 router.post('/deals/:id/pass', async (req, res, next) => {
   try {
-    const d = await dealRow(req.params.id);
+    const d = await dealRow(req.params.id, req.body?.listing_id);
     if (!d) return res.status(404).json({ error: 'Deal not found' });
     const r = await pool.query(
       `INSERT INTO deal_claims (listing_id, org_id, user_id, status, expires_at, notes) VALUES ($1,$2,$3,'passed',NULL,$4)
@@ -177,7 +182,7 @@ router.post('/deals/:id/pass', async (req, res, next) => {
 // Release a claim (yours, or any in your company if you're admin/broker): the deal goes back to open.
 router.post('/deals/:id/release', async (req, res, next) => {
   try {
-    const d = await dealRow(req.params.id);
+    const d = await dealRow(req.params.id, req.body?.listing_id);
     if (!d) return res.status(404).json({ error: 'Deal not found' });
     const mine = ['admin', 'broker'].includes(req.user.role) ? '' : ' AND user_id = $3';
     const r = await pool.query(`DELETE FROM deal_claims WHERE listing_id = $1 AND org_id = $2 AND status IN ('claimed','passed')${mine} RETURNING listing_id`,

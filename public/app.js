@@ -200,8 +200,9 @@ async function partsListing(listingId, btn) {
 }
 
 // ---- broker actions (used by broker.html; the page defines reloadDeals()) ----
+const listingOf = (id) => (window.dealsById && window.dealsById[id] && window.dealsById[id].listing_id) || null;
 async function brokerAct(id, action, body) {
-  try { await api(`/api/broker/deals/${id}/${action}`, { method: 'POST', body: body || {} }); if (typeof reloadDeals === 'function') reloadDeals(); }
+  try { await api(`/api/broker/deals/${id}/${action}`, { method: 'POST', body: { listing_id: listingOf(id), ...(body || {}) } }); if (typeof reloadDeals === 'function') reloadDeals(); }
   catch (e) { alert(e.message); }
 }
 async function brokerClaim(id) {
@@ -217,11 +218,11 @@ async function brokerClaim(id) {
     }
   }
   try {
-    await api(`/api/broker/deals/${id}/claim`, { method: 'POST', body: { buyer_id } });
+    await api(`/api/broker/deals/${id}/claim`, { method: 'POST', body: { buyer_id, listing_id: listingOf(id) } });
   } catch (e) {
     if (!/already claimed/i.test(e.message)) { alert(e.message); return; }
     if (!confirm(e.message + ' Claim it for your buyer anyway?')) return;
-    try { await api(`/api/broker/deals/${id}/claim`, { method: 'POST', body: { buyer_id, confirm: true } }); } catch (e2) { alert(e2.message); return; }
+    try { await api(`/api/broker/deals/${id}/claim`, { method: 'POST', body: { buyer_id, confirm: true, listing_id: listingOf(id) } }); } catch (e2) { alert(e2.message); return; }
   }
   if (typeof reloadDeals === 'function') reloadDeals();
 
