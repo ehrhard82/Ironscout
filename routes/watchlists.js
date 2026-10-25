@@ -122,8 +122,10 @@ router.get('/deals', async (req, res, next) => {
 
 router.post('/request', async (req, res, next) => {
   try {
-    const term = String(req.body?.term || '').trim().toLowerCase().slice(0, 255);
-    if (term.length < 3) return res.status(400).json({ error: 'Tell us what you want tracked' });
+    const typed = String(req.body?.term || '').trim().toLowerCase().slice(0, 255);
+    if (typed.length < 3) return res.status(400).json({ error: 'Tell us what you want tracked' });
+    const resolved = await require('../lib/aliases').resolve(typed);   // don't spawn "drill rig" next to "drilling rig"
+    const term = resolved.product ? resolved.product.name : (resolved.name || typed);
     const existing = await pool.query('SELECT id FROM products WHERE name = $1', [term]);
     if (existing.rows.length) {
       await pool.query(`INSERT INTO watchlists (user_id, product_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [req.user.id, existing.rows[0].id]);

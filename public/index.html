@@ -19,6 +19,8 @@
   main { max-width:1200px; margin:0 auto; }
   .sortrow { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   .sortrow .viewtoggle { flex:0 0 auto; margin-left:auto; }
+  .listhead { display:flex; align-items:center; gap:10px; flex-wrap:wrap; } .listhead h2 { margin:0; flex:1 1 auto; }
+  @media (max-width:480px) { .listhead .viewtoggle { flex:1 1 100%; display:flex; } .listhead .viewtoggle button { flex:1; } }
   .sortrow label { display:flex; align-items:center; gap:6px; flex:1 1 150px; min-width:150px; }
   .sortrow select { flex:1 1 auto; min-width:110px; width:auto; padding:8px 8px; font-size:14px; }
   @media (max-width:480px) { .sortrow .viewtoggle { flex:1 1 100%; margin-left:0; display:flex; } .sortrow .viewtoggle button { flex:1; } }
@@ -34,7 +36,7 @@
   .setup .dismiss { margin-left:auto; color:var(--muted); font-size:13px; background:none; border:0; min-height:0; padding:0; }
   .welcome { background:linear-gradient(135deg,#2a2410,#181b22); border:1px solid var(--accent); border-radius:12px; padding:16px; }
   .welcome h3 { margin:0 0 6px; font-size:18px; } .welcome p { margin:0 0 6px; line-height:1.5; } .welcome p:last-of-type { margin-bottom:0; }
-  .listhead { display:flex; align-items:center; gap:10px; margin:6px 0 10px; } .listhead h2 { margin:0; flex:1; }
+  .listhead { margin:6px 0 10px; }
 </style></head><body>
 <header id="hdr"></header>
 <div class="hero">
@@ -63,11 +65,16 @@ async function init() {
   $('products').innerHTML = prods.products.map(p => `<option value="${esc(p.name)}">`).join('');
   // Quick chips: the user's own machines first, then the most-listed tracked ones
   const mine = wl.watchlists.map(w => w.product);
-  const popular = prods.products.filter(p => !mine.includes(p.name)).slice(0, 8 - Math.min(mine.length, 8)).map(p => p.name);
+  // then the rest ranked by how much is going on (open deals, then live listings), 8 showing, "more" for the rest
+  const rest = prods.products.filter(p => !mine.includes(p.name)).sort((a, b) => (b.open_deals - a.open_deals) || (b.active_listings - a.active_listings)).map(p => p.name);
   const chip = (m, star) => `<button onclick="go('${esc(m)}')"${star ? ' title="On your watchlist"' : ''}>${star ? '★ ' : ''}${esc(m)}</button>`;
-  const all = [...mine.map(m => chip(m, true)), ...popular.map(m => chip(m, false))];
-  $('chips').innerHTML = all.join('')
-    + (mine.length ? `<button class="allmine" onclick="location.href='/mine.html'" style="border-color:var(--accent);color:var(--accent)">All my machines' deals →</button>` : '');
+  const first = [...mine, ...rest].slice(0, 8), more = [...mine, ...rest].slice(8);
+  window.renderChips = (showAll) => {
+    $('chips').innerHTML = [...first, ...(showAll ? more : [])].map(m => chip(m, mine.includes(m))).join('')
+      + (more.length ? `<button class="allmine muted" onclick="renderChips(${!showAll})">${showAll ? 'Show fewer' : `${more.length} more machine${more.length === 1 ? '' : 's'}…`}</button>` : '')
+      + (mine.length ? `<button class="allmine" onclick="location.href='/mine.html'" style="border-color:var(--accent);color:var(--accent)">All my machines' deals →</button>` : '');
+  };
+  renderChips(false);
   if (qs.get('q')) go(qs.get('q')); else feed();
   showWelcome();
   showSetup(wl.watchlists.length).catch(() => {});

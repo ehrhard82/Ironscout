@@ -17,8 +17,10 @@ const { blockedSql, notPassedSql, attachClaims } = require('../lib/orgs');
 
 router.get('/', requireAccess, async (req, res, next) => {
   try {
-    const q = String(req.query.q || '').trim().toLowerCase();
-    if (q.length < 2) return res.status(400).json({ error: 'Type a machine, e.g. "wheel loader"' });
+    const typed = String(req.query.q || '').trim().toLowerCase();
+    if (typed.length < 2) return res.status(400).json({ error: 'Type a machine, e.g. "wheel loader"' });
+    const resolved = await require('../lib/aliases').resolve(typed);   // "drill rig" -> the "drilling rig" we already track
+    const q = resolved.product ? resolved.product.name : (resolved.name || typed);
 
     // exact, then contains, then every word present
     const words = q.split(/\s+/).filter(Boolean);
