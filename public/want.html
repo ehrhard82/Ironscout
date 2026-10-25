@@ -1,0 +1,69 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>What are you looking for? · IronScout</title><link rel="apple-touch-icon" href="/icons/icon-180.png"><meta name="theme-color" content="#0f1115"><link rel="stylesheet" href="/app.css">
+<style>
+  body { background:var(--bg); color:var(--text); }
+  main { max-width:560px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:24px; margin:0 0 4px; } h1 span { color:var(--accent); }
+  .sub { color:var(--muted); margin:0 0 18px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:12px 0 4px; }
+  input, select, textarea { width:100%; box-sizing:border-box; }
+  .want { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-top:12px; }
+  .want .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .hp { position:absolute; left:-9999px; }
+  button.primary { width:100%; margin-top:18px; padding:14px; font-size:16px; }
+  .done { text-align:center; padding:40px 10px; } .done b { font-size:20px; display:block; margin-bottom:8px; }
+</style></head><body>
+<main>
+  <div id="form">
+    <h1><span>Iron</span>Scout</h1>
+    <p class="sub" id="intro">Tell me what you're looking for and I'll watch the market for you.</p>
+    <label>Your name</label><input id="name" autocomplete="name">
+    <label>Company</label><input id="company" autocomplete="organization">
+    <label>Phone</label><input id="phone" type="tel" autocomplete="tel" placeholder="so I can text you when one shows up">
+    <label>Email (optional)</label><input id="email" type="email" autocomplete="email">
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px"><div><label>City</label><input id="city"></div><div><label>State</label><input id="state" maxlength="2" placeholder="TX"></div></div>
+    <input class="hp" id="website" tabindex="-1" autocomplete="off">
+    <div id="wants"></div>
+    <button type="button" id="more" style="margin-top:8px">+ another machine</button>
+    <label>Anything else</label><textarea id="notes" rows="3" placeholder="condition, timing, budget, what you've got to trade…"></textarea>
+    <button class="primary" id="send">Send it</button>
+    <p class="muted small" style="text-align:center;margin-top:10px">Goes straight to <span id="repname">your rep</span>. No account, no spam.</p>
+  </div>
+  <div id="done" class="done" style="display:none"><b>Got it.</b><span class="muted" id="done-msg">I'll be in touch the moment something fits.</span></div>
+</main>
+<datalist id="machines"></datalist>
+<script>
+const $ = (id) => document.getElementById(id);
+const slug = location.pathname.split('/').pop();
+let n = 0;
+function addWant() {
+  n++;
+  const d = document.createElement('div'); d.className = 'want';
+  d.innerHTML = `<label style="margin-top:0">Machine</label><input list="machines" data-k="machine" placeholder="winch truck, frac pump, wheel loader…">
+    <div class="grid2"><div><label>Max price ($)</label><input data-k="max_price" inputmode="numeric" placeholder="optional"></div><div><label>Oldest year</label><input data-k="min_year" inputmode="numeric" placeholder="optional"></div></div>
+    <label>Must-haves</label><input data-k="notes" placeholder="tandem, under 5,000 hrs, Cat engine…">`;
+  $('wants').appendChild(d);
+}
+(async () => {
+  try {
+    const r = await fetch('/api/public/intake/' + slug).then(x => x.json());
+    if (r.error) { $('intro').textContent = r.error; $('send').disabled = true; return; }
+    $('intro').textContent = `${r.rep}${r.org ? ' at ' + r.org : ''} will watch the market for you. Tell ${r.rep.split(' ')[0]} what you need.`;
+    $('repname').textContent = r.rep;
+    $('machines').innerHTML = r.machines.map(m => `<option value="${m.replace(/"/g, '&quot;')}">`).join('');
+  } catch (e) {}
+  addWant();
+  $('more').onclick = addWant;
+  $('send').onclick = async () => {
+    const wants = [...document.querySelectorAll('.want')].map(w => Object.fromEntries([...w.querySelectorAll('[data-k]')].map(i => [i.dataset.k, i.value.trim()]))).filter(w => w.machine);
+    const body = { name: $('name').value, company: $('company').value || $('name').value, phone: $('phone').value, email: $('email').value, city: $('city').value, state: $('state').value, notes: $('notes').value, website: $('website').value, wants };
+    if (!body.name.trim() || (!body.phone.trim() && !body.email.trim())) { alert('Your name and a phone or email, please.'); return; }
+    $('send').disabled = true; $('send').textContent = 'Sending…';
+    try {
+      const r = await fetch('/api/public/intake/' + slug, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(x => x.json());
+      if (r.error) throw new Error(r.error);
+      $('form').style.display = 'none'; $('done').style.display = '';
+    } catch (e) { alert(e.message); $('send').disabled = false; $('send').textContent = 'Send it'; }
+  };
+})();
+</script></body></html>

@@ -69,6 +69,7 @@ async function runScheduledIngest(reason) {
   for (const t of terms) ingestQueue.enqueue(t, { force }); // one at a time, after anything already running
   ingestQueue.enqueue('__done__');                        // sentinel: runs after the last machine
   deactivateStale(14).catch(() => {});
+  require('../lib/demand/rrc').refresh().catch(e => console.error('permits refresh failed:', e.message));   // free; runs alongside
   console.log(`[cron] daily refresh started (${reason}): ${terms.length} machine(s)`);
   return terms;
 }

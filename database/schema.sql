@@ -357,3 +357,60 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user    ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_watchlists_user  ON watchlists(user_id);
 CREATE INDEX IF NOT EXISTS idx_users_stripe     ON users(stripe_customer_id);
+
+-- ---- Find buyers (demand side) ----
+-- Companies pay extra for this tab; admin always sees it.
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS demand_access BOOLEAN DEFAULT FALSE;
+-- Each rep gets a public "tell me what you're looking for" link; what comes in lands in that rep's buyers.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS intake_slug VARCHAR(40);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_intake_slug ON users (intake_slug) WHERE intake_slug IS NOT NULL;
+
+-- Drilling permits (Texas RRC public files). A permit = an operator about to need iron.
+CREATE TABLE IF NOT EXISTS permits (
+  id            SERIAL PRIMARY KEY,
+  state         VARCHAR(2) NOT NULL DEFAULT 'TX',
+  permit_no     VARCHAR(20) NOT NULL,
+  status        VARCHAR(10) NOT NULL,          -- pending | approved
+  operator_no   VARCHAR(20),
+  operator_name VARCHAR(120) NOT NULL,
+  county_code   VARCHAR(5),
+  county        VARCHAR(40),
+  district      VARCHAR(4),
+  lease_name    VARCHAR(80),
+  well_no       VARCHAR(20),
+  received_at   DATE,
+  issued_at     DATE,
+  source_file   VARCHAR(20),
+  first_seen    TIMESTAMP DEFAULT NOW(),
+  last_seen     TIMESTAMP DEFAULT NOW(),
+  UNIQUE (state, permit_no, status)
+);
+CREATE INDEX IF NOT EXISTS idx_permits_dates ON permits (COALESCE(issued_at, received_at) DESC);
+
+CREATE TABLE IF NOT EXISTS operators (
+  id             SERIAL PRIMARY KEY,
+  state          VARCHAR(2) NOT NULL DEFAULT 'TX',
+  operator_no    VARCHAR(60) NOT NULL,
+  name           VARCHAR(120) NOT NULL,
+  phone          VARCHAR(40),
+  address        VARCHAR(200),
+  city           VARCHAR(80),
+  st             VARCHAR(2),
+  zip            VARCHAR(12),
+  website        VARCHAR(200),
+  notes          TEXT,
+  permits_30d    INTEGER DEFAULT 0,
+  permits_90d    INTEGER DEFAULT 0,
+  counties       TEXT,
+  last_permit_at DATE,
+  first_seen     TIMESTAMP DEFAULT NOW(),
+  updated_at     TIMESTAMP DEFAULT NOW(),
+  UNIQUE (state, operator_no)
+);
+
+-- Demand heat: auction activity we already see on every listing.
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS bids INTEGER;
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS watchers INTEGER;
+
+-- Buyer intake: "tell us what you're looking for" links, one per company; rows land in buyers.
+ALTER TABLE buyers ADD COLUMN IF NOT EXISTS intake_note TEXT;

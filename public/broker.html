@@ -19,6 +19,7 @@
     <button class="on" id="tab-deals" onclick="showTab('deals')">Deals to work</button>
     <button id="tab-buyers" onclick="showTab('buyers')">Buyers</button>
     <button id="tab-followups" onclick="showTab('followups')">Follow-ups <span id="fu-count" class="muted small"></span></button>
+    <button id="tab-demand" onclick="showTab('demand')" style="display:none">Find buyers</button>
     <button class="primary" onclick="showTab('buyers');$('add-details').open=true;$('b-company').focus()">+ Add buyer</button>
   </div></div>
   <div class="section" id="pane-deals">
@@ -39,6 +40,29 @@
     <p class="muted small">Your reminders. Tap <b>Follow up</b> on any deal card to add one, or add a note here.</p>
     <div class="row" style="margin-bottom:10px"><input id="fu-note" placeholder="Call Joe about the loader" style="flex:2 1 200px"><input id="fu-when" placeholder="tomorrow / Fri / 10/28" style="flex:1 1 120px"><button class="primary" id="fu-add">Add</button></div>
     <div id="followups"></div>
+  </div>
+
+  <div class="section" id="pane-demand" style="display:none">
+    <h2>Find buyers</h2>
+    <p class="muted small" style="margin-top:0">Who is about to need iron, where the bidding is, and a link that turns any conversation into a standing order.</p>
+
+    <h3 style="margin:14px 0 6px">Operators pulling drilling permits <span class="muted small" id="op-meta"></span></h3>
+    <p class="muted small" style="margin-top:0">Every drilling permit filed with the Texas Railroad Commission, rolled up by operator. A company permitting wells this month needs rigs, trucks, pumps and service crews next month. Tap a name for the leases; <b>Add as buyer</b> drops them into your Buyers list as a prospect.</p>
+    <div class="row" style="margin-bottom:8px;gap:6px">
+      <select id="op-days"><option value="14">last 2 weeks</option><option value="30" selected>last 30 days</option><option value="90">last 90 days</option></select>
+      <select id="op-county" style="flex:1 1 140px"><option value="">all counties</option></select>
+      <input id="op-q" placeholder="operator name" style="flex:1 1 140px">
+      <button id="op-go">Show</button>
+    </div>
+    <div id="operators" class="small"><span class="muted">Tap Show.</span></div>
+
+    <h3 style="margin:22px 0 6px">Demand heat — where buyers are bidding</h3>
+    <p class="muted small" style="margin-top:0">From the auctions we already watch: how many lots have live bids, how many prices climbed this week, and how fast each machine is selling versus the two months before. Rising = buyers out there now. That's what to go source, and which of your own units to push.</p>
+    <div id="heat" class="small"><span class="muted">Loading…</span></div>
+
+    <h3 style="margin:22px 0 6px">Your buyer intake link</h3>
+    <p class="muted small" style="margin-top:0">Text this to anyone who mentions they're looking. They fill in what they want; it lands in your Buyers as a prospect and the next matching deal pings you. Nobody logs in.</p>
+    <div class="row" style="gap:6px"><input id="intake-url" readonly style="flex:1 1 200px"><button id="intake-copy">Copy</button><button id="intake-share">Share</button></div>
   </div>
 
   <div class="section" id="pane-buyers" style="display:none">
@@ -79,7 +103,8 @@ async function load() {
   renderKpis(dash);
   await Promise.all([reloadDeals(), loadBuyers(), loadBlocked()]);
   if (!window.CAN_HIDE) $('blocked-box').style.display = 'none';
-  if (location.hash === '#buyers') showTab('buyers'); else if (location.hash === '#followups') showTab('followups');
+  if (window.currentUser && window.currentUser.demand_access) $('tab-demand').style.display = '';
+  if (location.hash === '#buyers') showTab('buyers'); else if (location.hash === '#followups') showTab('followups'); else if (location.hash === '#demand') showTab('demand');
   api('/api/broker/followups').then(rows => { const n = rows.filter(r => !r.done_at).length; $('fu-count').textContent = n ? `(${n})` : ''; }).catch(() => {});
 }
 async function loadBlocked() {
@@ -91,9 +116,58 @@ async function restoreListing(id) {
   try { await api(`/api/broker/listings/${id}/block`, { method: 'DELETE' }); await loadBlocked(); } catch (e) { alert(e.message); }
 }
 function showTab(t) {
-  for (const k of ['deals', 'buyers', 'followups']) { $('pane-' + k).style.display = t === k ? '' : 'none'; $('tab-' + k).classList.toggle('on', t === k); }
+  for (const k of ['deals', 'buyers', 'followups', 'demand']) { $('pane-' + k).style.display = t === k ? '' : 'none'; $('tab-' + k).classList.toggle('on', t === k); }
   history.replaceState(null, '', '/broker.html' + (t === 'deals' ? '' : '#' + t));
   if (t === 'followups') loadFollowups();
+  if (t === 'demand' && !window.demandLoaded) { window.demandLoaded = true; loadDemand(); }
+}
+// ---- Find buyers tab ----
+async function loadDemand() {
+  $('op-go').onclick = loadOperators;
+  loadOperators(); loadHeat();
+  try { const r = await api('/api/demand/intake-link'); $('intake-url').value = r.url;
+    $('intake-copy').onclick = async () => { try { await navigator.clipboard.writeText(r.url); $('intake-copy').textContent = 'Copied'; setTimeout(() => $('intake-copy').textContent = 'Copy', 1500); } catch (e) { prompt('Copy this link', r.url); } };
+    $('intake-share').onclick = () => navigator.share ? navigator.share({ title: 'Tell me what you\'re looking for', text: 'Fill this in and I\'ll watch the market for you:', url: r.url }).catch(() => {}) : prompt('Copy this link', r.url);
+  } catch (e) { $('intake-url').value = e.message; }
+}
+async function loadOperators() {
+  const days = $('op-days').value, county = $('op-county').value, q = $('op-q').value.trim();
+  $('operators').innerHTML = '<span class="muted">Loading…</span>';
+  try {
+    const r = await api(`/api/demand/operators?days=${days}${county ? '&county=' + encodeURIComponent(county) : ''}${q ? '&q=' + encodeURIComponent(q) : ''}`);
+    $('op-meta').textContent = r.permits ? `· ${r.permits.toLocaleString()} permits on file · updated ${r.refreshed_at ? new Date(r.refreshed_at).toLocaleDateString() : 'never'}` : '· no permits loaded yet';
+    if (!$('op-county').dataset.filled && r.top_counties && r.top_counties.length) { $('op-county').dataset.filled = '1'; $('op-county').innerHTML = '<option value="">all counties</option>' + r.top_counties.map(c => `<option value="${esc(c.county)}">${esc(c.county)} (${c.n})</option>`).join(''); }
+    if (!r.operators.length) { $('operators').innerHTML = `<span class="muted">${r.permits ? 'No operators match.' : 'No permits loaded yet. Admin → Fetch → Refresh permits, or wait for tomorrow\'s 6 AM run.'}</span>`; return; }
+    $('operators').innerHTML = r.operators.map(o => `<div style="padding:8px 0;border-bottom:1px solid var(--line)" id="op-${esc(o.key).replace(/[^a-z0-9]/gi,'_')}">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div style="flex:1 1 180px;min-width:0"><b>${esc(o.name)}</b>${o.in_my_buyers ? ' <span class="pill">in your buyers</span>' : ''}<br>
+          <span class="muted">${o.permits} permit${o.permits === 1 ? '' : 's'}${o.pending ? ` (${o.pending} pending)` : ''}${o.last_7d ? ` · <b style="color:var(--good)">${o.last_7d} this week</b>` : ''} · ${esc(o.counties || '')} · last ${o.last_permit_at ? new Date(o.last_permit_at).toLocaleDateString() : ''}</span>
+          ${o.phone || o.city ? `<br><span class="muted">${o.phone ? `<a href="tel:${esc(o.phone)}">${esc(o.phone)}</a> · ` : ''}${esc([o.city, o.st].filter(Boolean).join(', '))}</span>` : ''}</div>
+        <button style="padding:6px 10px" onclick="opPermits('${esc(o.key)}', this)">Leases</button>
+        <a href="https://www.google.com/search?q=${encodeURIComponent(o.name + ' oil gas phone')}" target="_blank" rel="noopener"><button style="padding:6px 10px">Look up</button></a>
+        ${o.in_my_buyers ? '' : `<button class="primary" style="padding:6px 10px" onclick="opAdd('${esc(o.key)}', this)">Add as buyer</button>`}
+      </div><div class="small muted" data-leases></div></div>`).join('');
+  } catch (e) { $('operators').innerHTML = `<span style="color:var(--warn)">${esc(e.message)}</span>`; }
+}
+async function opPermits(key, btn) {
+  const box = btn.closest('div[id^="op-"]').querySelector('[data-leases]');
+  if (box.innerHTML) { box.innerHTML = ''; return; }
+  const r = await api(`/api/demand/operators/${encodeURIComponent(key)}/permits`);
+  box.innerHTML = '<div style="margin-top:6px">' + r.permits.map(p => `${p.status === 'pending' ? '⏳' : '✅'} ${esc(p.lease_name || '')}${p.well_no ? ' #' + esc(p.well_no) : ''} · ${esc(p.county || '')} · ${new Date(p.issued_at || p.received_at).toLocaleDateString()}`).join('<br>') + '</div>';
+}
+async function opAdd(key, btn) {
+  try { const r = await api(`/api/demand/operators/${encodeURIComponent(key)}/add-buyer`, { method: 'POST', body: {} }); btn.textContent = r.existed ? 'Already a buyer' : 'Added ✓'; btn.disabled = true; loadBuyers().catch(() => {}); }
+  catch (e) { alert(e.message); }
+}
+async function loadHeat() {
+  try {
+    const r = await api('/api/demand/heat');
+    const rows = r.machines.filter(m => m.live_listings);
+    $('heat').innerHTML = (rows.length ? `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table style="width:100%;min-width:520px;border-collapse:collapse"><thead><tr class="muted"><th style="text-align:left">Machine</th><th>Live</th><th>With bids</th><th>Bids</th><th>Price ↑ 7d</th><th>Sold 30d vs prior</th></tr></thead><tbody>` +
+      rows.map(m => { const trend = m.sold_30d > m.sold_prev_60d_avg ? '↑' : m.sold_30d < m.sold_prev_60d_avg ? '↓' : '→'; const hot = m.total_bids > 0 || m.prices_up_7d > 0 || trend === '↑';
+        return `<tr style="border-top:1px solid var(--line)"><td><a href="/?q=${encodeURIComponent(m.machine)}">${esc(m.machine)}</a>${hot ? ' <span style="color:var(--good)">●</span>' : ''}</td><td style="text-align:center">${m.live_listings}</td><td style="text-align:center">${m.with_bids}${m.pct_auctions_bid ? ` <span class="muted">(${m.pct_auctions_bid}%)</span>` : ''}</td><td style="text-align:center">${m.total_bids}</td><td style="text-align:center">${m.prices_up_7d}</td><td style="text-align:center">${m.sold_30d} vs ${m.sold_prev_60d_avg} ${trend}</td></tr>`; }).join('') + '</tbody></table></div>' : '<span class="muted">No live listings yet.</span>')
+      + (r.hot.length ? `<details style="margin-top:10px"><summary class="muted">Hottest lots right now (${r.hot.length})</summary><div style="margin-top:6px">` + r.hot.map(h => `<div style="padding:4px 0;border-bottom:1px solid var(--line)"><b>${money(h.price)}</b> · ${h.url ? `<a href="${esc(h.url)}" target="_blank" rel="noopener">${esc(h.title)}</a>` : esc(h.title)} <span class="muted">· ${esc(h.machine)} · ${h.bids ? h.bids + ' bids' : ''}${h.raises_7d ? ` · price up ${h.raises_7d}× this week` : ''} · ${esc([h.city, h.state].filter(Boolean).join(', '))}${h.auction_ends ? ' · ends ' + new Date(h.auction_ends).toLocaleDateString() : ''}</span></div>`).join('') + '</div></details>' : '<p class="muted" style="margin-top:8px">Bid counts start filling in with the next refresh; price moves show as they happen.</p>');
+  } catch (e) { $('heat').innerHTML = `<span style="color:var(--warn)">${esc(e.message)}</span>`; }
 }
 async function loadFollowups() {
   const rows = await api('/api/broker/followups');

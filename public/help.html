@@ -9,6 +9,7 @@
   .staff { display:none; } body.is-staff .staff { display:block; } body.is-staff span.staff, body.is-staff b.staff { display:inline; }
   .curator { display:none; } body.is-curator .curator { display:block; }
   .admin { display:none; } body.is-admin .admin { display:block; }
+  .demand { display:none; } body.is-demand .demand { display:block; }
 </style></head><body>
 <header id="hdr"></header>
 <main>
@@ -44,6 +45,7 @@
       <li><b class="staff">Delivered to your buyers</b><span class="staff">: one quote per buyer who wants this machine, to wherever they said to deliver it.</span></li>
       <li><b>"thin data"</b> or <b>"verify: unusually low"</b>: not enough comparable sales, or a price so low it's probably the wrong machine or a parts unit. Treat these as leads to check, not facts.</li>
       <li><b>Auction · ends in …</b>: an auction price is only the current bid. It isn't a deal until it closes.</li>
+      <li><b>≈ $3,900/mo</b>: a rough finance payment (20% down, 60 months, typical used-equipment rate) so a buyer on the fence can picture it. It's an estimate, not an offer; a lender's quote replaces it.</li>
     </ul>
   </div>
 
@@ -76,6 +78,15 @@
     </div>
   </div>
 
+  <div class="demand">
+    <h2>Find buyers</h2>
+    <div class="box">
+      <p><b>Operators pulling permits.</b> Every drilling permit filed with the Texas Railroad Commission, rolled up by company. A permit means wells get drilled in the next few weeks, and wells need rigs, trucks, pumps and crews. Filter by county, tap <b>Leases</b> to see where, <b>Add as buyer</b> to put them in your list.</p>
+      <p><b>Demand heat.</b> From the auctions we already watch: which machines have live bids and climbing prices, and whether they're selling faster than the two months before. Green dot = buyers are out there for that machine right now.</p>
+      <p><b>Your intake link.</b> A one-page form you text to anyone who says "I'm looking for…". It lands in your Buyers as a prospect and the next matching deal pings you.</p>
+    </div>
+  </div>
+
   <div class="curator">
     <h2>Not this machine</h2>
     <div class="box">
@@ -104,5 +115,6 @@
   if (['admin', 'broker', 'agent'].includes(user.role)) document.body.classList.add('is-staff');
   if (['admin', 'broker'].includes(user.role)) document.body.classList.add('is-curator');
   if (user.role === 'admin') document.body.classList.add('is-admin');
+  if (user.demand_access) document.body.classList.add('is-demand');
 })().catch(e => { if (!['login', 'subscribe'].includes(e.message)) console.error(e); });
 </script></body></html>

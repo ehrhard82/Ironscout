@@ -62,10 +62,13 @@ app.use('/api/watchlists', require('./routes/watchlists').router);
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/lookup', require('./routes/lookup'));
 app.use('/api/cron', require('./routes/cron'));
+app.use('/api/public', require('./routes/public'));                 // buyer intake form (no login)
+app.get('/want/:slug', (req, res) => res.sendFile(path.join(__dirname, 'public', 'want.html')));
 
 // Role-restricted
 app.use('/api/broker', auth.requireRole('admin', 'broker', 'agent'), require('./routes/broker'));
 app.use('/api/buyers', auth.requireRole('admin', 'broker', 'agent'), require('./routes/buyers'));
+app.use('/api/demand', auth.requireRole('admin', 'broker', 'agent'), require('./routes/demand'));   // Find buyers (paid add-on; gated inside)
 app.use('/api/admin', auth.requireRole('admin'), require('./routes/admin'));
 
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
