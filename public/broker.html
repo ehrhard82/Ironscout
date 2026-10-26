@@ -163,6 +163,9 @@ async function loadLeads() {
     $('ld-bulk').style.display = ldCanAssign && r.leads.length ? 'flex' : 'none';
     if (ldCanAssign) { $('ld-pick-row').style.display = ''; $('ld-pick').checked = Boolean(r.agents_pick); $('ld-pick').onchange = async () => { try { await api('/api/demand/settings', { method: 'POST', body: { agents_pick: $('ld-pick').checked } }); } catch (e) { alert(e.message); } }; }
     if (r.you_are_agent) { $('ld-assigned').innerHTML = `<option value="me">mine</option>${r.agents_pick ? '<option value="none">unassigned pool</option>' : ''}`; if (!r.agents_pick) $('ld-assigned').value = 'me'; }
+    // the pool-narrowing filters don't apply to a person's own list; grey them out so that's obvious
+    const personal = ['me'].includes($('ld-assigned').value) || (!['any', 'none'].includes($('ld-assigned').value));
+    for (const id of ['ld-days', 'ld-cargo', 'ld-trucks']) { $(id).disabled = personal; $(id).style.opacity = personal ? 0.45 : 1; }
     if (!r.leads.length) { $('leads').innerHTML = `<span class="muted">${Object.keys(r.counts).length ? 'Nothing matches those filters.' : 'No leads loaded yet. Admin → Fetch → Refresh permits.'}</span>`; return; }
     const kindLabel = { operator: 'permit holder', carrier: 'trucking / service', intake: 'from your link', dealer: 'dealer', import: 'imported' };
     $('leads').innerHTML = r.leads.map(l => `<div class="lead" data-id="${l.id}" style="padding:8px 0;border-bottom:1px solid var(--line)">

@@ -9,6 +9,16 @@
   .radios { display:flex; gap:8px; flex-wrap:wrap; } .radios label { background:#1c2029; border:1px solid var(--line); border-radius:999px; padding:8px 14px; cursor:pointer; }
   .radios label:has(input:checked) { border-color:var(--accent); color:var(--accent); } .radios input { display:none; }
   .savebar { position:sticky; bottom:0; background:var(--bg); border-top:1px solid var(--line); padding:12px 24px; display:flex; gap:12px; align-items:center; }
+  details.section > summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:8px; padding:6px 0; }
+  details.section > summary::-webkit-details-marker { display:none; }
+  details.section > summary h2 { margin:0; }
+  details.section > summary::before { content:"▸"; color:var(--muted); font-size:14px; width:14px; transition:transform .15s; }
+  details.section[open] > summary::before { transform:rotate(90deg); }
+  details.section { margin-bottom:10px; }
+  .jumps { position:sticky; top:0; z-index:5; background:var(--bg); display:flex; gap:6px; overflow-x:auto; padding:8px 0 10px; margin:-8px 0 8px; border-bottom:1px solid var(--line); -webkit-overflow-scrolling:touch; }
+  .jumps a { white-space:nowrap; font-size:13px; color:var(--text); background:#1c2029; border:1px solid var(--line); border-radius:999px; padding:5px 11px; text-decoration:none; }
+  #totop { position:fixed; right:14px; bottom:84px; width:44px; height:44px; border-radius:50%; background:var(--accent); color:#1a1200; border:0; font-size:20px; font-weight:700; box-shadow:0 4px 14px rgba(0,0,0,.4); display:none; z-index:6; min-height:0; padding:0; }
+  #totop.show { display:block; }
 </style></head><body>
 <header id="hdr"></header>
 <div id="subscribe-banner" class="banner" style="display:none">
@@ -16,37 +26,38 @@
   <button class="primary" id="subscribe">Subscribe</button>
 </div>
 <main>
-  <div class="section" id="plan"><h2>Plan</h2><div class="card"><div id="plan-body" class="muted">Loading…</div><div class="row" id="plan-actions"></div></div></div>
+  <div class="jumps" id="jumps"><a href="#sec-machines">Machines</a><a href="#sec-yard">Yard</a><a href="#sec-commission">Commission</a><a href="#sec-filters">Deal rules</a><a href="#sec-alerts">Alerts</a><a href="#sec-saved">Saved</a><a href="#sec-password">Password</a><a href="#sec-plan">Plan</a></div>
+  <details class="section" id="sec-plan"><summary><h2>Plan</h2></summary><div class="card"><div id="plan-body" class="muted">Loading…</div><div class="row" id="plan-actions"></div></div></details>
 
-  <div class="section">
-    <h2>Machines I want alerts for</h2>
+  <details class="section" id="sec-machines">
+    <summary><h2>Machines I want alerts for</h2></summary>
     <p class="muted small">Check every machine you want to hear about. Alerts use the location, price and margin settings below.</p>
     <div class="card">
       <div class="machines" id="machines"></div>
       <div class="row" style="margin-top:10px"><span class="muted small">Need one that isn't listed?</span>
         <input id="req-term" placeholder="e.g. frac pump" style="min-width:180px"><button id="req-btn">Request it</button><span id="req-msg" class="ok small"></span></div>
     </div>
-  </div>
+  </details>
 
-  <div class="section" id="yard">
-    <h2>Where I take delivery</h2>
+  <details class="section" id="sec-yard">
+    <summary><h2>Where I take delivery</h2></summary>
     <p class="muted small">Set your yard and every deal shows what it costs delivered: price + the auction house's buyer's premium + a freight estimate for the miles. Freight is an estimate until a hauler quotes it.</p>
     <div class="card"><div class="row">
       <div class="field"><span>City</span><input id="yard_city" placeholder="Levelland"></div>
       <div class="field" style="min-width:90px"><span>State</span><input id="yard_state" placeholder="TX" maxlength="2" style="min-width:70px"></div>
     </div></div>
-  </div>
+  </details>
 
-  <div class="section" id="comm">
-    <h2>My commission</h2>
+  <details class="section" id="sec-commission">
+    <summary><h2>My commission</h2></summary>
     <p class="muted small">Private to you. Enter your cut and every deal shows what you'd earn if it sells at market value. Nobody else sees this number.</p>
     <div class="card"><div class="row">
       <div class="field" style="min-width:140px"><span>Commission %</span><input id="commission_percent" type="number" step="0.5" min="0" max="100" placeholder="10"></div>
     </div></div>
-  </div>
+  </details>
 
-  <div class="section">
-    <h2>What counts as a deal for me</h2>
+  <details class="section" id="sec-filters">
+    <summary><h2>What counts as a deal for me</h2></summary>
     <div class="card"><div class="row">
       <div class="field"><span>Only in these states (leave blank for anywhere in the US)</span><input id="states" placeholder="TX, OK, LA"></div>
       <div class="field"><span>At least this much cheaper than market (%) — 10 means 10% under</span><input id="min_discount" type="number" min="0" max="90" step="1"></div>
@@ -54,10 +65,10 @@
       <div class="field"><span>Don't show me anything over ($, optional)</span><input id="max_price" type="number" min="0" step="1000"></div>
       <div class="field"><span>Oldest model year I'd consider (optional)</span><input id="min_year" type="number" min="1970" max="2030" placeholder="e.g. 2010"></div>
     </div></div>
-  </div>
+  </details>
 
-  <div class="section">
-    <h2>How to alert me</h2>
+  <details class="section" id="sec-alerts">
+    <summary><h2>How to alert me</h2></summary>
     <div class="card">
       <div class="row">
         <div class="field"><span>Send me</span>
@@ -80,14 +91,27 @@
       </div>
       <div class="muted small" style="margin-top:8px" id="sms-note"></div>
     </div>
-  </div>
+  </details>
 
-  <div class="section"><h2>Saved deals</h2><div id="saved" class="grid"></div></div>
+  <details class="section" id="sec-saved"><summary><h2>Saved deals</h2></summary><div id="saved" class="grid"></div></details>
 
-  <div class="section"><h2>Password</h2><div class="card"><div class="row">
+  <details class="section" id="sec-password"><summary><h2>Password</h2></summary><div class="card"><div class="row">
     <input id="pw-cur" type="password" placeholder="Current password"><input id="pw-new" type="password" placeholder="New password (8+)"><button id="pw-btn">Change</button><span id="pw-msg" class="err"></span>
-  </div></div></div>
+  </div></div></details>
 </main>
+<button id="totop" title="Back to top" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+<script>
+(function () {
+  const all = [...document.querySelectorAll('details.section')];
+  let saved = null; try { saved = JSON.parse(localStorage.getItem('settings-open') || 'null'); } catch {}
+  for (const d of all) d.open = saved ? saved.includes(d.id) : ['sec-machines', 'sec-yard', 'sec-commission'].includes(d.id);
+  document.addEventListener('toggle', () => { try { localStorage.setItem('settings-open', JSON.stringify(all.filter(d => d.open).map(d => d.id))); } catch {} }, true);
+  if (location.hash) { const d = document.querySelector(location.hash); if (d && d.tagName === 'DETAILS') { d.open = true; setTimeout(() => d.scrollIntoView({ behavior: 'smooth' }), 100); } }
+  document.getElementById('jumps').addEventListener('click', (e) => { const a = e.target.closest('a'); if (!a) return; const d = document.querySelector(a.getAttribute('href')); if (d) d.open = true; });
+  const top = document.getElementById('totop');
+  addEventListener('scroll', () => top.classList.toggle('show', scrollY > 600), { passive: true });
+})();
+</script>
 <div class="savebar"><button class="primary" id="save" style="font-size:16px;padding:12px 26px">Save settings</button><span id="save-msg" class="ok"></span></div>
 <script src="/app.js"></script>
 <script>
@@ -102,7 +126,7 @@ async function load() {
 
   const st = await api('/api/billing/status');
   if (user.role !== 'subscriber') {
-    $('plan').style.display = 'none';
+    $('sec-plan').style.display = 'none';
   } else {
     const label = { none: 'No subscription yet', trialing: 'Free trial', active: 'Active', past_due: 'Payment failed — update your card', canceled: 'Canceled', unpaid: 'Unpaid' }[st.subscription_status] || st.subscription_status;
     const until = st.subscription_ends_at ? ` · access until ${new Date(st.subscription_ends_at).toLocaleDateString()}` : '';

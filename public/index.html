@@ -110,7 +110,7 @@ async function showSetup(watchCount) {
   const [s, b] = await Promise.all([api('/api/settings'), staff ? api('/api/buyers').catch(() => ({ buyers: [] })) : Promise.resolve(null)]);
   let looked = false; try { looked = localStorage.getItem('looked-up') === '1'; } catch {}
   const steps = [
-    { done: !!s.yard_state, href: '/account.html#yard', t: 'Set where you take delivery', d: 'Every deal then shows the price landed at your yard.' },
+    { done: !!s.yard_state, href: '/account.html#sec-yard', t: 'Set where you take delivery', d: 'Every deal then shows the price landed at your yard.' },
     { done: looked || watchCount > 0, href: '#', onclick: "document.getElementById('q').focus();return false", t: 'Look up a machine', d: 'Type one above: winch truck, frac pump, wheel loader…' },
   ];
   if (staff) steps.push({ done: !!(b && b.buyers && b.buyers.length), href: '/broker.html#buyers', t: 'Add a buyer', d: 'Who you sell to and what they want. Matching deals come first, with their delivered price.' });
@@ -181,7 +181,7 @@ async function go(q, opts = {}) {
         <label class="muted">Show <select id="kind" onchange="kindFilter=this.value;renderDeals()"><option value="all">everything</option><option value="listing">buy now only</option><option value="auction">auctions only</option></select></label>${viewToggle()}</div>
       <div class="small">
         ${r.filters_applied ? `<a href="#" onclick="showAll=true;go(current);return false">Show all ${r.all_deals} deals</a>` : `<a href="#" onclick="showAll=false;go(current);return false">Apply my settings</a>`}
-        &nbsp;·&nbsp; <a href="/listings.html?m=${encodeURIComponent(r.product.name)}"><b>See every live listing</b></a> &nbsp;·&nbsp; <a href="/account.html">Change settings</a>${r.yard ? '' : ' &nbsp;·&nbsp; <a href="/account.html#yard">Set my yard for delivered prices</a>'}
+        &nbsp;·&nbsp; <a href="/listings.html?m=${encodeURIComponent(r.product.name)}"><b>See every live listing</b></a> &nbsp;·&nbsp; <a href="/account.html">Change settings</a>${r.yard ? '' : ' &nbsp;·&nbsp; <a href="/account.html#sec-yard">Set my yard for delivered prices</a>'}
         &nbsp;·&nbsp; ${r.watched ? `<span class="muted">★ On your watchlist</span>` : `<a href="#" onclick="watch(${r.product.id});return false">★ Watch this machine</a>`}
         ${r.last_updated ? `&nbsp;·&nbsp; <span class="muted">updated ${new Date(r.last_updated).toLocaleString()}</span>` : ''}
       </div>
