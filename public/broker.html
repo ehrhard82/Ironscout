@@ -12,6 +12,7 @@
   .form input, .form select { width:100%; min-width:0; }
   .form .wide { grid-column:1/-1; }
   details summary { cursor:pointer; color:var(--accent); }
+  .lead select { min-width:118px; }
 </style></head><body>
 <header id="hdr"></header>
 <main>
@@ -46,15 +47,21 @@
     <h2>Find buyers</h2>
     <p class="muted small" style="margin-top:0">Who is about to need iron, where the bidding is, and a link that turns any conversation into a standing order.</p>
 
-    <h3 style="margin:14px 0 6px">Operators pulling drilling permits <span class="muted small" id="op-meta"></span></h3>
-    <p class="muted small" style="margin-top:0">Every drilling permit filed with the Texas Railroad Commission, rolled up by operator. A company permitting wells this month needs rigs, trucks, pumps and service crews next month. Tap a name for the leases; <b>Add as buyer</b> drops them into your Buyers list as a prospect.</p>
-    <div class="row" style="margin-bottom:8px;gap:6px">
-      <select id="op-days"><option value="14">last 2 weeks</option><option value="30" selected>last 30 days</option><option value="90">last 90 days</option></select>
-      <select id="op-county" style="flex:1 1 140px"><option value="">all counties</option></select>
-      <input id="op-q" placeholder="operator name" style="flex:1 1 140px">
-      <button id="op-go">Show</button>
+    <h3 style="margin:14px 0 6px">Leads <span class="muted small" id="ld-meta"></span></h3>
+    <p class="muted small" style="margin-top:0">Everyone we can find who's about to need iron, in one list. <b>Permit holders</b> are operators drilling this month (Texas Railroad Commission, refreshed daily). More sources plug in here as we add them. Tick names and hand them to a salesman; each row has call, text, status and a note.</p>
+    <div class="row" style="gap:6px;margin-bottom:6px">
+      <select id="ld-kind"><option value="all">all sources</option><option value="operator">permit holders</option><option value="carrier">trucking &amp; service cos</option><option value="intake">from my link</option><option value="dealer">dealers</option></select>
+      <select id="ld-county" style="flex:1 1 130px"><option value="">all counties</option></select>
+      <select id="ld-days"><option value="">any time</option><option value="7">active this week</option><option value="30" selected>last 30 days</option><option value="90">last 90 days</option></select>
     </div>
-    <div id="operators" class="small"><span class="muted">Tap Show.</span></div>
+    <div class="row" style="gap:6px;margin-bottom:6px">
+      <select id="ld-status"><option value="open">open (not dead/customer)</option><option value="all">any status</option><option value="new">new</option><option value="assigned">assigned</option><option value="contacted">contacted</option><option value="talking">talking</option><option value="customer">customer</option><option value="dead">dead</option></select>
+      <select id="ld-assigned"><option value="any">anyone</option><option value="me">mine</option><option value="none">unassigned</option></select>
+      <select id="ld-sort"><option value="hot">hottest first</option><option value="newest">newest</option><option value="touched">recently worked</option><option value="name">A–Z</option></select>
+    </div>
+    <div class="row" style="gap:6px;margin-bottom:8px"><input id="ld-q" placeholder="name or city" style="flex:1 1 140px"><button class="primary" id="ld-go">Show</button></div>
+    <div class="row" id="ld-bulk" style="gap:6px;margin-bottom:8px;display:none;align-items:center"><label class="small muted"><input type="checkbox" id="ld-all"> all shown</label><span class="small muted" id="ld-selcount"></span><select id="ld-assign-to" style="flex:1 1 120px"><option value="">— hand selected to —</option></select><button id="ld-assign">Assign</button></div>
+    <div id="leads" class="small"><span class="muted">Tap Show.</span></div>
 
     <h3 style="margin:22px 0 6px">Demand heat — where buyers are bidding</h3>
     <p class="muted small" style="margin-top:0">From the auctions we already watch: how many lots have live bids, how many prices climbed this week, and how fast each machine is selling versus the two months before. Rising = buyers out there now. That's what to go source, and which of your own units to push.</p>
@@ -123,42 +130,73 @@ function showTab(t) {
 }
 // ---- Find buyers tab ----
 async function loadDemand() {
-  $('op-go').onclick = loadOperators;
-  loadOperators(); loadHeat();
+  $('ld-go').onclick = loadLeads;
+  for (const id of ['ld-kind', 'ld-county', 'ld-days', 'ld-status', 'ld-assigned', 'ld-sort']) $(id).onchange = loadLeads;
+  if ((window.currentUser || {}).role === 'agent') $('ld-assigned').value = 'me';
+  loadLeads(); loadHeat();
   try { const r = await api('/api/demand/intake-link'); $('intake-url').value = r.url;
     $('intake-copy').onclick = async () => { try { await navigator.clipboard.writeText(r.url); $('intake-copy').textContent = 'Copied'; setTimeout(() => $('intake-copy').textContent = 'Copy', 1500); } catch (e) { prompt('Copy this link', r.url); } };
     $('intake-share').onclick = () => navigator.share ? navigator.share({ title: 'Tell me what you\'re looking for', text: 'Fill this in and I\'ll watch the market for you:', url: r.url }).catch(() => {}) : prompt('Copy this link', r.url);
   } catch (e) { $('intake-url').value = e.message; }
 }
-async function loadOperators() {
-  const days = $('op-days').value, county = $('op-county').value, q = $('op-q').value.trim();
-  $('operators').innerHTML = '<span class="muted">Loading…</span>';
+let ldSel = new Set(), ldTeam = [], ldCanAssign = false;
+function ldQuery() {
+  const v = (id) => $(id).value;
+  const p = new URLSearchParams(); p.set('kind', v('ld-kind')); if (v('ld-county')) p.set('county', v('ld-county')); if (v('ld-days')) p.set('days', v('ld-days'));
+  p.set('status', v('ld-status')); p.set('assigned', v('ld-assigned')); p.set('sort', v('ld-sort')); if (v('ld-q').trim()) p.set('q', v('ld-q').trim());
+  return p.toString();
+}
+async function loadLeads() {
+  $('leads').innerHTML = '<span class="muted">Loading…</span>'; ldSel.clear(); $('ld-all').checked = false;
   try {
-    const r = await api(`/api/demand/operators?days=${days}${county ? '&county=' + encodeURIComponent(county) : ''}${q ? '&q=' + encodeURIComponent(q) : ''}`);
-    $('op-meta').textContent = r.permits ? `· ${r.permits.toLocaleString()} permits on file · updated ${r.refreshed_at ? new Date(r.refreshed_at).toLocaleDateString() : 'never'}` : '· no permits loaded yet';
-    if (!$('op-county').dataset.filled && r.top_counties && r.top_counties.length) { $('op-county').dataset.filled = '1'; $('op-county').innerHTML = '<option value="">all counties</option>' + r.top_counties.map(c => `<option value="${esc(c.county)}">${esc(c.county)} (${c.n})</option>`).join(''); }
-    if (!r.operators.length) { $('operators').innerHTML = `<span class="muted">${r.permits ? 'No operators match.' : 'No permits loaded yet. Admin → Fetch → Refresh permits, or wait for tomorrow\'s 6 AM run.'}</span>`; return; }
-    $('operators').innerHTML = r.operators.map(o => `<div style="padding:8px 0;border-bottom:1px solid var(--line)" id="op-${esc(o.key).replace(/[^a-z0-9]/gi,'_')}">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <div style="flex:1 1 180px;min-width:0"><b>${esc(o.name)}</b>${o.in_my_buyers ? ' <span class="pill">in your buyers</span>' : ''}<br>
-          <span class="muted">${o.permits} permit${o.permits === 1 ? '' : 's'}${o.pending ? ` (${o.pending} pending)` : ''}${o.last_7d ? ` · <b style="color:var(--good)">${o.last_7d} this week</b>` : ''} · ${esc(o.counties || '')} · last ${o.last_permit_at ? new Date(o.last_permit_at).toLocaleDateString() : ''}</span>
-          ${o.phone || o.city ? `<br><span class="muted">${o.phone ? `<a href="tel:${esc(o.phone)}">${esc(o.phone)}</a> · ` : ''}${esc([o.city, o.st].filter(Boolean).join(', '))}</span>` : ''}</div>
-        <button style="padding:6px 10px" onclick="opPermits('${esc(o.key)}', this)">Leases</button>
-        <a href="https://www.google.com/search?q=${encodeURIComponent(o.name + ' oil gas phone')}" target="_blank" rel="noopener"><button style="padding:6px 10px">Look up</button></a>
-        ${o.in_my_buyers ? '' : `<button class="primary" style="padding:6px 10px" onclick="opAdd('${esc(o.key)}', this)">Add as buyer</button>`}
-      </div><div class="small muted" data-leases></div></div>`).join('');
-  } catch (e) { $('operators').innerHTML = `<span style="color:var(--warn)">${esc(e.message)}</span>`; }
+    const r = await api('/api/demand/leads?' + ldQuery());
+    ldTeam = r.team; ldCanAssign = ['admin', 'broker'].includes((window.currentUser || {}).role);
+    $('ld-meta').textContent = `· ${Object.entries(r.counts).map(([k, n]) => `${n} ${({ operator: 'permit holders', carrier: 'trucking/service', intake: 'from links', dealer: 'dealers' })[k] || k}`).join(', ') || 'none yet'}${r.mine ? ` · ${r.mine} on your plate` : ''}`;
+    if (!$('ld-county').dataset.filled && r.counties.length) { $('ld-county').dataset.filled = '1'; $('ld-county').innerHTML = '<option value="">all counties</option>' + r.counties.map(c => `<option value="${esc(c.county)}">${esc(c.county)} (${c.n})</option>`).join(''); }
+    if (!$('ld-assigned').dataset.filled) { $('ld-assigned').dataset.filled = '1'; $('ld-assigned').innerHTML += r.team.map(t => `<option value="${t.id}">${esc(t.name || t.email)}</option>`).join(''); $('ld-assign-to').innerHTML = '<option value="">— hand selected to —</option>' + r.team.map(t => `<option value="${t.id}">${esc(t.name || t.email)}</option>`).join('') + '<option value="0">(unassign)</option>'; }
+    $('ld-bulk').style.display = ldCanAssign && r.leads.length ? 'flex' : 'none';
+    if (!r.leads.length) { $('leads').innerHTML = `<span class="muted">${Object.keys(r.counts).length ? 'Nothing matches those filters.' : 'No leads loaded yet. Admin → Fetch → Refresh permits.'}</span>`; return; }
+    const kindLabel = { operator: 'permit holder', carrier: 'trucking / service', intake: 'from your link', dealer: 'dealer', import: 'imported' };
+    $('leads').innerHTML = r.leads.map(l => `<div class="lead" data-id="${l.id}" style="padding:8px 0;border-bottom:1px solid var(--line)">
+      <div style="display:flex;gap:8px;align-items:flex-start">
+        ${ldCanAssign ? `<input type="checkbox" data-sel="${l.id}" style="margin-top:4px">` : ''}
+        <div style="flex:1 1 160px;min-width:0">
+          <b>${esc(l.name)}</b> <span class="pill">${kindLabel[l.kind] || l.kind}</span>${l.buyer_id ? ' <span class="pill" style="background:#1f3a2a">buyer</span>' : ''}<br>
+          <span class="muted">${esc(l.signal_text || '')}${l.counties ? ' · ' + esc(l.counties) : (l.city ? ' · ' + esc([l.city, l.st].filter(Boolean).join(', ')) : '')}</span>
+          ${l.phone || l.email ? `<br><span class="muted">${l.phone ? `<a href="tel:${esc(l.phone)}">${esc(l.phone)}</a> · <a href="sms:${esc(l.phone)}">text</a>` : ''}${l.phone && l.email ? ' · ' : ''}${l.email ? `<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>` : ''}</span>` : ''}
+          <div class="muted" style="margin-top:4px">${l.assigned_name ? `→ ${esc(l.assigned_name)}` : '<i>unassigned</i>'}${l.last_touch_at ? ` · touched ${ago(l.last_touch_at)}` : ''}${l.notes ? ` · <span style="color:var(--text)">${esc(l.notes)}</span>` : ''}</div>
+        </div>
+      </div>
+      <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">
+        <select data-status="${l.id}" style="padding:6px 8px">${['new','assigned','contacted','talking','customer','dead'].map(st => `<option value="${st}" ${st === l.status ? 'selected' : ''}>${st}</option>`).join('')}</select>
+        ${ldCanAssign ? `<select data-assign="${l.id}" style="padding:6px 8px"><option value="">assign…</option>${ldTeam.map(t => `<option value="${t.id}" ${t.id === l.assigned_to ? 'selected' : ''}>${esc(t.name || t.email)}</option>`).join('')}</select>` : ''}
+        <button style="padding:6px 10px" data-note="${l.id}">Note</button>
+        ${l.kind === 'operator' ? `<button style="padding:6px 10px" data-leases="${esc(l.meta && l.meta.operator_no ? l.meta.operator_no : '')}">Leases</button>` : ''}
+        ${!l.phone ? `<a href="https://www.google.com/search?q=${encodeURIComponent(l.name + ' ' + (l.st || 'Texas') + ' phone')}" target="_blank" rel="noopener"><button style="padding:6px 10px">Look up</button></a>` : ''}
+        ${l.buyer_id ? `<a href="/broker.html#buyers"><button style="padding:6px 10px">Open buyer</button></a>` : `<button class="primary" style="padding:6px 10px" data-addbuyer="${l.id}">Add as buyer</button>`}
+      </div>
+      <div class="small muted" data-leasebox></div>
+    </div>`).join('');
+  } catch (e) { $('leads').innerHTML = `<span style="color:var(--warn)">${esc(e.message)}</span>`; }
 }
-async function opPermits(key, btn) {
-  const box = btn.closest('div[id^="op-"]').querySelector('[data-leases]');
-  if (box.innerHTML) { box.innerHTML = ''; return; }
-  const r = await api(`/api/demand/operators/${encodeURIComponent(key)}/permits`);
-  box.innerHTML = '<div style="margin-top:6px">' + r.permits.map(p => `${p.status === 'pending' ? '⏳' : '✅'} ${esc(p.lease_name || '')}${p.well_no ? ' #' + esc(p.well_no) : ''} · ${esc(p.county || '')} · ${new Date(p.issued_at || p.received_at).toLocaleDateString()}`).join('<br>') + '</div>';
-}
-async function opAdd(key, btn) {
-  try { const r = await api(`/api/demand/operators/${encodeURIComponent(key)}/add-buyer`, { method: 'POST', body: {} }); btn.textContent = r.existed ? 'Already a buyer' : 'Added ✓'; btn.disabled = true; loadBuyers().catch(() => {}); }
-  catch (e) { alert(e.message); }
-}
+$('leads').addEventListener('change', async (ev) => {
+  const t = ev.target;
+  if (t.dataset.sel) { t.checked ? ldSel.add(Number(t.dataset.sel)) : ldSel.delete(Number(t.dataset.sel)); $('ld-selcount').textContent = ldSel.size ? `${ldSel.size} selected` : ''; return; }
+  if (t.dataset.status) { try { await api(`/api/demand/leads/${t.dataset.status}`, { method: 'PATCH', body: { status: t.value } }); } catch (e) { alert(e.message); } return; }
+  if (t.dataset.assign) { try { await api('/api/demand/leads/assign', { method: 'POST', body: { ids: [Number(t.dataset.assign)], assigned_to: t.value ? Number(t.value) : null } }); loadLeads(); } catch (e) { alert(e.message); } return; }
+});
+$('leads').addEventListener('click', async (ev) => {
+  const b = ev.target.closest('button'); if (!b) return;
+  if (b.dataset.note) { const n = prompt('Note on this lead'); if (n === null) return; try { await api(`/api/demand/leads/${b.dataset.note}`, { method: 'PATCH', body: { notes: n } }); loadLeads(); } catch (e) { alert(e.message); } }
+  else if (b.dataset.addbuyer) { try { const r = await api(`/api/demand/leads/${b.dataset.addbuyer}/add-buyer`, { method: 'POST', body: {} }); b.textContent = r.existed ? 'Already a buyer' : 'Added ✓'; b.disabled = true; loadBuyers().catch(() => {}); } catch (e) { alert(e.message); } }
+  else if (b.dataset.leases !== undefined) { const box = b.closest('.lead').querySelector('[data-leasebox]'); if (box.innerHTML) { box.innerHTML = ''; return; }
+    try { const r = await api(`/api/demand/operators/${encodeURIComponent(b.dataset.leases)}/permits`); box.innerHTML = '<div style="margin-top:6px">' + (r.permits.map(p => `${p.status === 'pending' ? '⏳' : '✅'} ${esc(p.lease_name || '')}${p.well_no ? ' #' + esc(p.well_no) : ''} · ${esc(p.county || '')} · ${new Date(p.issued_at || p.received_at).toLocaleDateString()}`).join('<br>') || 'no permits on file') + '</div>'; } catch (e) { box.textContent = e.message; } }
+});
+$('ld-all').onchange = () => { document.querySelectorAll('[data-sel]').forEach(c => { c.checked = $('ld-all').checked; c.checked ? ldSel.add(Number(c.dataset.sel)) : ldSel.delete(Number(c.dataset.sel)); }); $('ld-selcount').textContent = ldSel.size ? `${ldSel.size} selected` : ''; };
+$('ld-assign').onclick = async () => {
+  const to = $('ld-assign-to').value; if (to === '' || !ldSel.size) { alert('Tick some names and pick a person.'); return; }
+  try { const r = await api('/api/demand/leads/assign', { method: 'POST', body: { ids: [...ldSel], assigned_to: Number(to) || null } }); $('ld-selcount').textContent = `${r.updated} handed over`; loadLeads(); } catch (e) { alert(e.message); }
+};
 async function loadHeat() {
   try {
     const r = await api('/api/demand/heat');

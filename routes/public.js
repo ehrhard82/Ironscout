@@ -49,6 +49,9 @@ router.post('/intake/:slug', async (req, res, next) => {
       await pool.query(`INSERT INTO buyer_wants (buyer_id, product_id, max_price, states, min_year, notes) VALUES ($1,$2,$3,$4,$5,$6)`,
         [buyerId, pid, max, [], minYear, String(w.notes || '').trim().slice(0, 300) || null]);
     }
+    // into the rep's lead list too, already assigned to them
+    try { const org = (await pool.query('SELECT org_id FROM users WHERE id = $1', [rep.id])).rows[0]?.org_id;
+      if (org) await require('../lib/demand/leads').addIntakeLead({ orgId: org, repId: rep.id, buyerId, name: company, phone, email, city: b.city || null, st: String(b.state || '').trim().toUpperCase().slice(0, 2) || null, wants }); } catch (e) { console.log('intake lead skipped:', e.message); }
     // tell the rep (email if mail is set up; always in the activity feed)
     require('../lib/activity').log({ id: rep.id }, 'new buyer via link', `${company}${phone ? ' · ' + phone : ''}`);
     try {

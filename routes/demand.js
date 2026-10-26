@@ -64,6 +64,44 @@ router.post('/operators/:key/add-buyer', gate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ---- the lead list ----
+const leads = require('../lib/demand/leads');
+const canAssign = (u) => ['admin', 'broker'].includes(u.role);
+router.get('/leads', gate, async (req, res, next) => { try { res.json(await leads.list(req.user, req.query)); } catch (e) { next(e); } });
+router.post('/leads/assign', gate, async (req, res, next) => {
+  try {
+    if (!canAssign(req.user)) return res.status(403).json({ error: 'Only the broker or admin hands out leads' });
+    const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter(Boolean).slice(0, 500);
+    const to = req.body?.assigned_to ? Number(req.body.assigned_to) : null;
+    const n = await leads.assign(req.user, ids, to);
+    log(req.user, to ? 'assigned leads' : 'unassigned leads', `${n}`);
+    res.json({ ok: true, updated: n });
+  } catch (e) { next(e); }
+});
+router.patch('/leads/:id', gate, async (req, res, next) => {
+  try { res.json(await leads.update(req.user, Number(req.params.id), req.body || {})); } catch (e) { next(e); }
+});
+// Lead -> buyer for the person clicking (or for its assigned rep, when a broker clicks)
+router.post('/leads/:id/add-buyer', gate, async (req, res, next) => {
+  try {
+    const org = Number(req.user.org_id);
+    const l = (await pool.query(`SELECT l.*, s.assigned_to, s.buyer_id FROM leads l LEFT JOIN lead_state s ON s.lead_id = l.id AND s.org_id = $2 WHERE l.id = $1 AND (l.org_id IS NULL OR l.org_id = $2)`, [req.params.id, org])).rows[0];
+    if (!l) return res.status(404).json({ error: 'Lead not found' });
+    if (l.buyer_id) return res.json({ ok: true, buyer_id: l.buyer_id, existed: true });
+    const owner = l.assigned_to || req.user.id;
+    const existing = await pool.query(`SELECT id FROM buyers WHERE owner_user_id = $1 AND lower(company) = lower($2)`, [owner, l.name]);
+    const buyerId = existing.rows.length ? existing.rows[0].id : (await pool.query(
+      `INSERT INTO buyers (company, phone, email, city, state, notes, status, source, owner_user_id) VALUES ($1,$2,$3,$4,$5,$6,'prospect',$7,$8) RETURNING id`,
+      [l.name, l.phone || null, l.email || null, l.city || null, l.st || null, `${l.kind === 'operator' ? 'From drilling permits' : l.kind === 'carrier' ? 'From the trucking registry' : 'Lead'}: ${l.signal_text || ''}${l.counties ? ' · ' + l.counties : ''}`.trim(), l.kind === 'operator' ? 'rrc' : l.kind === 'carrier' ? 'fmcsa' : 'lead', owner])).rows[0].id;
+    await leads.update(req.user, l.id, { status: 'talking', buyer_id: buyerId });
+    log(req.user, 'added buyer', `${l.name} (lead)`);
+    res.status(201).json({ ok: true, buyer_id: buyerId });
+  } catch (e) { next(e); }
+});
+router.post('/leads/sync', async (req, res, next) => {
+  try { if (!isAdmin(req.user)) return res.status(403).json({ error: 'admin only' }); res.json({ synced: await leads.syncOperators() }); } catch (e) { next(e); }
+});
+
 // GET /api/demand/heat — where the bidding is: per machine, how many listings have bids, how many
 // prices moved up this week, the hottest listings. Uses data the refresh already stores.
 router.get('/heat', gate, async (req, res, next) => {

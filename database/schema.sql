@@ -414,3 +414,44 @@ ALTER TABLE listings ADD COLUMN IF NOT EXISTS watchers INTEGER;
 
 -- Buyer intake: "tell us what you're looking for" links, one per company; rows land in buyers.
 ALTER TABLE buyers ADD COLUMN IF NOT EXISTS intake_note TEXT;
+
+-- One lead list for the Find buyers tab. Rows from public data (operators, carriers) are shared by every
+-- company; rows a company brought in itself (intake link, imports) carry its org_id. Who's working a lead,
+-- and how it's going, is per company in lead_state.
+CREATE TABLE IF NOT EXISTS leads (
+  id          SERIAL PRIMARY KEY,
+  kind        VARCHAR(20) NOT NULL,            -- operator | carrier | intake | dealer | import
+  source_key  VARCHAR(120) NOT NULL,
+  org_id      INTEGER REFERENCES organizations(id) ON DELETE CASCADE,   -- NULL = public data
+  name        VARCHAR(200) NOT NULL,
+  phone       VARCHAR(40),
+  email       VARCHAR(255),
+  website     VARCHAR(200),
+  city        VARCHAR(100),
+  st          VARCHAR(2),
+  zip         VARCHAR(12),
+  county      VARCHAR(40),
+  counties    TEXT,
+  signal      INTEGER DEFAULT 0,               -- ranking: permits this month, fleet size...
+  signal_text VARCHAR(200),
+  meta        JSONB,
+  first_seen  TIMESTAMP DEFAULT NOW(),
+  updated_at  TIMESTAMP DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_uq ON leads (kind, source_key, COALESCE(org_id, 0));
+CREATE INDEX IF NOT EXISTS idx_leads_kind ON leads (kind, signal DESC);
+
+CREATE TABLE IF NOT EXISTS lead_state (
+  org_id        INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  lead_id       INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+  assigned_to   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  assigned_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  assigned_at   TIMESTAMP,
+  status        VARCHAR(20) DEFAULT 'new',     -- new | assigned | contacted | talking | customer | dead
+  notes         TEXT,
+  buyer_id      INTEGER REFERENCES buyers(id) ON DELETE SET NULL,
+  last_touch_at TIMESTAMP,
+  updated_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  updated_at    TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (org_id, lead_id)
+);
