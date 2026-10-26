@@ -118,7 +118,10 @@ router.get('/intake-link', gate, async (req, res, next) => {
 
 // Admin: refresh permits now / look at the raw files
 router.post('/permits/refresh', async (req, res, next) => {
-  try { if (!isAdmin(req.user)) return res.status(403).json({ error: 'admin only' }); res.json(await require('../lib/demand/rrc').refresh()); } catch (e) { next(e); }
+  try { if (!isAdmin(req.user)) return res.status(403).json({ error: 'admin only' }); res.json(require('../lib/demand/rrc').refreshInBackground()); } catch (e) { next(e); }
+});
+router.get('/permits/status', async (req, res, next) => {
+  try { if (!isAdmin(req.user)) return res.status(403).json({ error: 'admin only' }); res.json(await require('../lib/demand/rrc').lastResult()); } catch (e) { next(e); }
 });
 router.get('/permits/sample', async (req, res, next) => {
   try { if (!isAdmin(req.user)) return res.status(403).json({ error: 'admin only' }); res.json(await require('../lib/demand/rrc').sample(req.query.kind)); } catch (e) { next(e); }

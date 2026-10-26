@@ -174,11 +174,20 @@ function renderActivity() {
   $('activity').innerHTML = rows.length ? rows.map(a => `<div style="padding:5px 0;border-bottom:1px solid var(--line)"><span class="muted">${new Date(a.at).toLocaleString(undefined, { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span> <b>${esc(a.name || a.email.split('@')[0])}</b> ${esc(a.action)}${a.detail ? `: <span class="muted">${esc(a.detail)}</span>` : ''}</div>`).join('') : '<div class="muted">Nothing yet.</div>';
 }
 async function patchUser(id, body) { try { await api('/api/admin/users/' + id, { method: 'PATCH', body }); load(); } catch (e) { alert(e.message); } }
+const permitsMsg = (r) => ['daily', 'pending'].map(k => { const x = r && r[k]; if (!x) return ''; if (x.skipped) return `${k}: skipped (${x.skipped})`; if (x.error) return `${k}: ERROR ${x.error}${x.steps ? ' [' + x.steps.join(' → ') + ']' : ''}`; return `${k}: ${x.rows} permits read, ${x.saved} saved`; }).filter(Boolean).join(' · ');
 $('permits-btn').onclick = async () => {
-  $('ingest-msg').textContent = 'Downloading permits from the Railroad Commission… (30–90 s)';
-  try { const r = await api('/api/demand/permits/refresh', { method: 'POST', body: {} });
-    $('ingest-msg').textContent = ['daily', 'pending'].map(k => { const x = r[k]; if (!x) return ''; if (x.skipped) return `${k}: skipped (${x.skipped})`; if (x.error) return `${k}: ERROR ${x.error}${x.steps ? ' [' + x.steps.join(' → ') + ']' : ''}`; return `${k}: ${x.rows} permits read, ${x.saved} saved (${(x.files || []).join(', ')})`; }).filter(Boolean).join(' · ') + ' — see Broker board → Find buyers.'; }
-  catch (e) { $('ingest-msg').textContent = 'Permits: ' + e.message; }
+  $('ingest-msg').textContent = 'Downloading permits from the Railroad Commission in the background…';
+  try {
+    const st = await api('/api/demand/permits/refresh', { method: 'POST', body: {} });
+    if (!st.started) { $('ingest-msg').textContent = 'Permits: ' + (st.reason || 'not started'); return; }
+    const t0 = Date.now();
+    const poll = async () => {
+      const r = await api('/api/demand/permits/status');
+      if (r.running && Date.now() - t0 < 5 * 60e3) { $('ingest-msg').textContent = `Permits: working… ${Math.round((Date.now() - t0) / 1000)}s (${r.permits.toLocaleString()} on file so far)`; return setTimeout(poll, 4000); }
+      $('ingest-msg').textContent = (r.last ? permitsMsg(r.last) : 'Permits: no result recorded') + ` — ${r.permits.toLocaleString()} permits from ${r.operators.toLocaleString()} operators on file${r.newest ? ', newest ' + new Date(r.newest).toLocaleDateString() : ''}. See Broker board → Find buyers.`;
+    };
+    setTimeout(poll, 3000);
+  } catch (e) { $('ingest-msg').textContent = 'Permits: ' + e.message; }
 };
 $('refresh-all-btn').onclick = async () => {
   if (!confirm('Refresh every watched machine now? This is the daily run (uses Apify budget) and takes a while.')) return;
