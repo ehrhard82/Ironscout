@@ -70,6 +70,8 @@ async function runScheduledIngest(reason) {
   ingestQueue.enqueue('__done__');                        // sentinel: runs after the last machine
   deactivateStale(14).catch(() => {});
   require('../lib/demand/rrc').refresh().catch(e => console.error('permits refresh failed:', e.message));   // free; runs alongside
+  const fmcsa = require('../lib/demand/fmcsa');
+  fmcsa.due().then(d => d && fmcsa.refresh()).catch(e => console.error('carriers refresh failed:', e.message));   // weekly
   console.log(`[cron] daily refresh started (${reason}): ${terms.length} machine(s)`);
   return terms;
 }

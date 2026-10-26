@@ -98,6 +98,10 @@ router.post('/leads/:id/add-buyer', gate, async (req, res, next) => {
     res.status(201).json({ ok: true, buyer_id: buyerId });
   } catch (e) { next(e); }
 });
+// Carriers (FMCSA): refresh / status / raw sample — admin
+router.post('/carriers/refresh', async (req, res, next) => { try { if (!isAdmin(req.user)) return res.status(403).json({ error: 'admin only' }); res.json(require('../lib/demand/fmcsa').refreshInBackground()); } catch (e) { next(e); } });
+router.get('/carriers/status', async (req, res, next) => { try { if (!isAdmin(req.user)) return res.status(403).json({ error: 'admin only' }); res.json(await require('../lib/demand/fmcsa').status()); } catch (e) { next(e); } });
+router.get('/carriers/sample', async (req, res, next) => { try { if (!isAdmin(req.user)) return res.status(403).json({ error: 'admin only' }); res.json(await require('../lib/demand/fmcsa').sample()); } catch (e) { next(e); } });
 router.post('/leads/sync', async (req, res, next) => {
   try { if (!isAdmin(req.user)) return res.status(403).json({ error: 'admin only' }); res.json({ synced: await leads.syncOperators() }); } catch (e) { next(e); }
 });
