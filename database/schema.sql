@@ -455,3 +455,7 @@ CREATE TABLE IF NOT EXISTS lead_state (
   updated_at    TIMESTAMP DEFAULT NOW(),
   PRIMARY KEY (org_id, lead_id)
 );
+-- A company's own contact info for a lead (looked up by a rep): shown to that company, never overwritten by the public data
+ALTER TABLE lead_state ADD COLUMN IF NOT EXISTS phone VARCHAR(40);
+ALTER TABLE lead_state ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+ALTER TABLE lead_state ADD COLUMN IF NOT EXISTS contact_name VARCHAR(120);

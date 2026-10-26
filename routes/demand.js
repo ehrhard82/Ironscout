@@ -85,14 +85,14 @@ router.patch('/leads/:id', gate, async (req, res, next) => {
 router.post('/leads/:id/add-buyer', gate, async (req, res, next) => {
   try {
     const org = Number(req.user.org_id);
-    const l = (await pool.query(`SELECT l.*, s.assigned_to, s.buyer_id FROM leads l LEFT JOIN lead_state s ON s.lead_id = l.id AND s.org_id = $2 WHERE l.id = $1 AND (l.org_id IS NULL OR l.org_id = $2)`, [req.params.id, org])).rows[0];
+    const l = (await pool.query(`SELECT l.*, s.assigned_to, s.buyer_id, COALESCE(s.phone, l.phone) AS phone, COALESCE(s.email, l.email) AS email, s.contact_name FROM leads l LEFT JOIN lead_state s ON s.lead_id = l.id AND s.org_id = $2 WHERE l.id = $1 AND (l.org_id IS NULL OR l.org_id = $2)`, [req.params.id, org])).rows[0];
     if (!l) return res.status(404).json({ error: 'Lead not found' });
     if (l.buyer_id) return res.json({ ok: true, buyer_id: l.buyer_id, existed: true });
     const owner = l.assigned_to || req.user.id;
     const existing = await pool.query(`SELECT id FROM buyers WHERE owner_user_id = $1 AND lower(company) = lower($2)`, [owner, l.name]);
     const buyerId = existing.rows.length ? existing.rows[0].id : (await pool.query(
-      `INSERT INTO buyers (company, phone, email, city, state, notes, status, source, owner_user_id) VALUES ($1,$2,$3,$4,$5,$6,'prospect',$7,$8) RETURNING id`,
-      [l.name, l.phone || null, l.email || null, l.city || null, l.st || null, `${l.kind === 'operator' ? 'From drilling permits' : l.kind === 'carrier' ? 'From the trucking registry' : 'Lead'}: ${l.signal_text || ''}${l.counties ? ' · ' + l.counties : ''}`.trim(), l.kind === 'operator' ? 'rrc' : l.kind === 'carrier' ? 'fmcsa' : 'lead', owner])).rows[0].id;
+      `INSERT INTO buyers (company, contact_name, phone, email, city, state, notes, status, source, owner_user_id) VALUES ($1,$9,$2,$3,$4,$5,$6,'prospect',$7,$8) RETURNING id`,
+      [l.name, l.phone || null, l.email || null, l.city || null, l.st || null, `${l.kind === 'operator' ? 'From drilling permits' : l.kind === 'carrier' ? 'From the trucking registry' : 'Lead'}: ${l.signal_text || ''}${l.counties ? ' · ' + l.counties : ''}`.trim(), l.kind === 'operator' ? 'rrc' : l.kind === 'carrier' ? 'fmcsa' : 'lead', owner, l.contact_name || null])).rows[0].id;
     await leads.update(req.user, l.id, { status: 'talking', buyer_id: buyerId });
     log(req.user, 'added buyer', `${l.name} (lead)`);
     res.status(201).json({ ok: true, buyer_id: buyerId });

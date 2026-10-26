@@ -163,7 +163,7 @@ async function loadLeads() {
         <div style="flex:1 1 160px;min-width:0">
           <b>${esc(l.name)}</b> <span class="pill">${kindLabel[l.kind] || l.kind}</span>${l.buyer_id ? ' <span class="pill" style="background:#1f3a2a">buyer</span>' : ''}<br>
           <span class="muted">${esc(l.signal_text || '')}${l.counties ? ' · ' + esc(l.counties) : (l.city ? ' · ' + esc([l.city, l.st].filter(Boolean).join(', ')) : '')}</span>
-          ${l.phone || l.email ? `<br><span class="muted">${l.phone ? `<a href="tel:${esc(l.phone)}">${esc(l.phone)}</a> · <a href="sms:${esc(l.phone)}">text</a>` : ''}${l.phone && l.email ? ' · ' : ''}${l.email ? `<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>` : ''}</span>` : ''}
+          ${l.phone || l.email ? `<br><span class="muted">${l.contact_name ? esc(l.contact_name) + ' · ' : ''}${l.phone ? `<a href="tel:${esc(l.phone)}">${esc(l.phone)}</a> · <a href="sms:${esc(l.phone)}">text</a>` : ''}${l.phone && l.email ? ' · ' : ''}${l.email ? `<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>` : ''}</span>` : ''}
           <div class="muted" style="margin-top:4px">${l.assigned_name ? `→ ${esc(l.assigned_name)}` : '<i>unassigned</i>'}${l.last_touch_at ? ` · touched ${ago(l.last_touch_at)}` : ''}${l.notes ? ` · <span style="color:var(--text)">${esc(l.notes)}</span>` : ''}</div>
         </div>
       </div>
@@ -171,6 +171,7 @@ async function loadLeads() {
         <select data-status="${l.id}" style="padding:6px 8px">${['new','assigned','contacted','talking','customer','dead'].map(st => `<option value="${st}" ${st === l.status ? 'selected' : ''}>${st}</option>`).join('')}</select>
         ${ldCanAssign ? `<select data-assign="${l.id}" style="padding:6px 8px"><option value="">assign…</option>${ldTeam.map(t => `<option value="${t.id}" ${t.id === l.assigned_to ? 'selected' : ''}>${esc(t.name || t.email)}</option>`).join('')}</select>` : ''}
         <button style="padding:6px 10px" data-note="${l.id}">Note</button>
+        <button style="padding:6px 10px" data-contact="${l.id}" title="Type in a number or email you found; everyone in your company sees it from then on">${l.phone ? 'Edit contact' : 'Save number'}</button>
         ${l.kind === 'operator' ? `<button style="padding:6px 10px" data-leases="${esc(l.meta && l.meta.operator_no ? l.meta.operator_no : '')}">Leases</button>` : ''}
         ${!l.phone ? `<a href="https://www.google.com/search?q=${encodeURIComponent(l.name + ' ' + (l.st || 'Texas') + ' phone')}" target="_blank" rel="noopener"><button style="padding:6px 10px">Look up</button></a>` : ''}
         ${l.buyer_id ? `<a href="/broker.html#buyers"><button style="padding:6px 10px">Open buyer</button></a>` : `<button class="primary" style="padding:6px 10px" data-addbuyer="${l.id}">Add as buyer</button>`}
@@ -187,7 +188,13 @@ $('leads').addEventListener('change', async (ev) => {
 });
 $('leads').addEventListener('click', async (ev) => {
   const b = ev.target.closest('button'); if (!b) return;
-  if (b.dataset.note) { const n = prompt('Note on this lead'); if (n === null) return; try { await api(`/api/demand/leads/${b.dataset.note}`, { method: 'PATCH', body: { notes: n } }); loadLeads(); } catch (e) { alert(e.message); } }
+  if (b.dataset.contact) {
+    const phone = prompt('Phone number (leave blank to keep)'); if (phone === null) return;
+    const who = prompt('Who to ask for (optional)'); if (who === null) return;
+    const email = prompt('Email (optional)'); if (email === null) return;
+    try { await api(`/api/demand/leads/${b.dataset.contact}`, { method: 'PATCH', body: { phone: phone || undefined, contact_name: who || undefined, email: email || undefined } }); loadLeads(); } catch (e) { alert(e.message); }
+  }
+  else if (b.dataset.note) { const n = prompt('Note on this lead'); if (n === null) return; try { await api(`/api/demand/leads/${b.dataset.note}`, { method: 'PATCH', body: { notes: n } }); loadLeads(); } catch (e) { alert(e.message); } }
   else if (b.dataset.addbuyer) { try { const r = await api(`/api/demand/leads/${b.dataset.addbuyer}/add-buyer`, { method: 'POST', body: {} }); b.textContent = r.existed ? 'Already a buyer' : 'Added ✓'; b.disabled = true; loadBuyers().catch(() => {}); } catch (e) { alert(e.message); } }
   else if (b.dataset.leases !== undefined) { const box = b.closest('.lead').querySelector('[data-leasebox]'); if (box.innerHTML) { box.innerHTML = ''; return; }
     try { const r = await api(`/api/demand/operators/${encodeURIComponent(b.dataset.leases)}/permits`); box.innerHTML = '<div style="margin-top:6px">' + (r.permits.map(p => `${p.status === 'pending' ? '⏳' : '✅'} ${esc(p.lease_name || '')}${p.well_no ? ' #' + esc(p.well_no) : ''} · ${esc(p.county || '')} · ${new Date(p.issued_at || p.received_at).toLocaleDateString()}`).join('<br>') || 'no permits on file') + '</div>'; } catch (e) { box.textContent = e.message; } }
