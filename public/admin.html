@@ -192,7 +192,7 @@ function renderActivity() {
   $('activity').innerHTML = rows.length ? rows.map(a => `<div style="padding:5px 0;border-bottom:1px solid var(--line)"><span class="muted">${new Date(a.at).toLocaleString(undefined, { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span> <b>${esc(a.name || a.email.split('@')[0])}</b> ${esc(a.action)}${a.detail ? `: <span class="muted">${esc(a.detail)}</span>` : ''}</div>`).join('') : '<div class="muted">Nothing yet.</div>';
 }
 async function patchUser(id, body) { try { await api('/api/admin/users/' + id, { method: 'PATCH', body }); load(); } catch (e) { alert(e.message); } }
-const permitsMsg = (r) => ['daily', 'pending'].map(k => { const x = r && r[k]; if (!x) return ''; if (x.skipped) return `${k}: skipped (${x.skipped})`; if (x.error) return `${k}: ERROR ${x.error}${x.steps ? ' [' + x.steps.join(' → ') + ']' : ''}`; return `${k}: ${x.rows} permits read, ${x.saved} saved`; }).filter(Boolean).join(' · ');
+const permitsMsg = (r) => ['daily', 'pending', 'p5'].map(k => { const x = r && r[k]; if (!x) return ''; if (x.skipped) return `${k}: skipped (${x.skipped})`; if (x.error) return `${k}: ERROR ${x.error}${x.steps ? ' [' + x.steps.join(' → ') + ']' : ''}`; return k === 'p5' ? `phones: ${x.operators_updated} operators updated from ${x.organizations} organizations` : `${k}: ${x.rows} permits read, ${x.saved} saved`; }).filter(Boolean).join(' · ');
 $('permits-btn').onclick = async () => {
   $('ingest-msg').textContent = 'Downloading permits from the Railroad Commission in the background…';
   try {
