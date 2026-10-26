@@ -47,6 +47,10 @@
     <h2>Find buyers</h2>
     <p class="muted small" style="margin-top:0">Who is about to need iron, where the bidding is, and a link that turns any conversation into a standing order.</p>
 
+    <details id="team-box" style="display:none;margin:4px 0 14px"><summary style="cursor:pointer"><h3 style="display:inline;margin:0">Your team</h3> <span class="muted small" id="team-meta"></span></summary>
+      <div id="team" class="small" style="margin-top:8px"></div>
+    </details>
+
     <h3 style="margin:14px 0 6px">Leads <span class="muted small" id="ld-meta"></span></h3>
     <p class="muted small" style="margin-top:0">Everyone we can find who's about to need iron, in one list. <b>Permit holders</b> are operators drilling this month (Texas Railroad Commission, daily). <b>Trucking &amp; service cos</b> are every carrier in TX/OK/NM that told the DOT it hauls oilfield equipment or heavy machinery (weekly); use the cargo and fleet filters to cut 30,000 names to the few hundred worth a call. Tick names and hand them to a salesman; each row has call, text, status and a note.</p>
     <div class="row" style="gap:6px;margin-bottom:6px">
@@ -135,6 +139,7 @@ function showTab(t) {
 }
 // ---- Find buyers tab ----
 async function loadDemand() {
+  if (['admin', 'broker'].includes((window.currentUser || {}).role)) { $('team-box').style.display = ''; $('team-box').open = true; loadTeam(); }
   $('ld-go').onclick = loadLeads;
   for (const id of ['ld-kind', 'ld-county', 'ld-days', 'ld-status', 'ld-assigned', 'ld-sort', 'ld-cargo', 'ld-trucks']) $(id).onchange = loadLeads;
   if ((window.currentUser || {}).role === 'agent') $('ld-assigned').value = 'me';
@@ -151,6 +156,22 @@ function ldQuery() {
   p.set('status', v('ld-status')); p.set('assigned', v('ld-assigned')); p.set('sort', v('ld-sort')); if (v('ld-q').trim()) p.set('q', v('ld-q').trim());
   if (v('ld-cargo')) p.set('cargo', v('ld-cargo')); if (v('ld-trucks')) p.set('min_trucks', v('ld-trucks'));
   return p.toString();
+}
+async function loadTeam() {
+  try {
+    const r = await api('/api/demand/team');
+    const stale = r.members.reduce((a, m) => a + m.stale, 0);
+    $('team-meta').textContent = `· ${r.members.length} people${stale ? ` · ${stale} lead${stale === 1 ? '' : 's'} going stale` : ''}`;
+    const row = (m) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)">
+      <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><b>${esc(m.name || m.email)}</b> <span class="muted">${esc(m.role)}${m.last_seen ? ' · active ' + ago(m.last_seen) : ' · never logged activity'}</span></div>
+      <div class="muted" style="margin-top:3px">leads: <b style="color:var(--text)">${m.open}</b> open · ${m.untouched} untouched${m.stale ? ` (<span style="color:var(--warn)">${m.stale} stale</span>)` : ''} · ${m.contacted} contacted · ${m.talking} talking · <span style="color:var(--good)">${m.won} won</span> · ${m.dead} dead</div>
+      <div class="muted" style="margin-top:2px">deals: ${m.claims} claimed · ${m.sold_90d} sold (90d) · ${m.buyers} buyers${m.last_touch ? ' · last lead touch ' + ago(m.last_touch) : ''}</div>
+    </div>`;
+    const staleList = r.stale.length ? `<details style="margin-top:8px"><summary class="muted" style="cursor:pointer">Going stale (${r.stale.length}) — assigned 7+ days, never touched</summary><div style="margin-top:6px">${r.stale.map(l => `<div style="padding:4px 0;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="flex:1 1 160px"><b>${esc(l.name)}</b> <span class="muted">→ ${esc(l.assigned_name)} · ${ago(l.assigned_at)}</span></span><select data-restale="${l.id}" style="padding:4px 8px"><option value="">reassign…</option>${ldTeam.map(t => `<option value="${t.id}">${esc(t.name || t.email)}</option>`).join('')}<option value="0">(unassign)</option></select></div>`).join('')}</div></details>` : '';
+    const feed = r.feed.length ? `<details style="margin-top:8px"><summary class="muted" style="cursor:pointer">What's happened (${r.feed.length})</summary><div style="margin-top:6px">${r.feed.map(f => `<div style="padding:3px 0;border-bottom:1px solid var(--line)"><span class="muted">${ago(f.at)}</span> · <b>${esc(f.who || '')}</b> ${esc(f.action)}${f.detail ? ': ' + esc(f.detail) : ''}</div>`).join('')}</div></details>` : '';
+    $('team').innerHTML = r.members.map(row).join('') + staleList + feed;
+    $('team').onchange = async (ev) => { const t = ev.target.closest('[data-restale]'); if (!t || t.value === '') return; try { await api('/api/demand/leads/assign', { method: 'POST', body: { ids: [Number(t.dataset.restale)], assigned_to: Number(t.value) || null } }); loadTeam(); loadLeads(); } catch (e) { alert(e.message); } };
+  } catch (e) { $('team').innerHTML = `<span style="color:var(--warn)">${esc(e.message)}</span>`; }
 }
 async function loadLeads() {
   $('leads').innerHTML = '<span class="muted">Loading…</span>'; ldSel.clear(); $('ld-all').checked = false;
@@ -184,6 +205,7 @@ async function loadLeads() {
         <select data-status="${l.id}" style="padding:6px 8px">${['new','assigned','contacted','talking','customer','dead'].map(st => `<option value="${st}" ${st === l.status ? 'selected' : ''}>${st}</option>`).join('')}</select>
         ${ldCanAssign ? `<select data-assign="${l.id}" style="padding:6px 8px"><option value="">assign…</option>${ldTeam.map(t => `<option value="${t.id}" ${t.id === l.assigned_to ? 'selected' : ''}>${esc(t.name || t.email)}</option>`).join('')}</select>` : ''}
         <button style="padding:6px 10px" data-note="${l.id}">Note</button>
+        <button style="padding:6px 10px" data-callback="${l.id}" data-name="${esc(l.name)}" title="Remind me to call back (email/text when it's due, or put it on your calendar)">Call back</button>
         <button style="padding:6px 10px" data-contact="${l.id}" title="Type in a number or email you found; everyone in your company sees it from then on">${l.phone ? 'Edit contact' : 'Save number'}</button>
         ${l.kind !== 'operator' ? `<button style="padding:6px 10px" data-worksfor="${l.id}" title="Which operators they haul or work for. Builds the map: when that operator permits, you'll see who to call.">Works for</button>` : ''}
         ${l.kind === 'operator' ? `<button style="padding:6px 10px" data-leases="${esc(l.meta && l.meta.operator_no ? l.meta.operator_no : '')}">Leases</button>` : ''}
@@ -203,7 +225,16 @@ $('leads').addEventListener('change', async (ev) => {
 });
 $('leads').addEventListener('click', async (ev) => {
   const b = ev.target.closest('button'); if (!b) return;
-  if (b.dataset.take) { try { await api('/api/demand/leads/assign', { method: 'POST', body: { ids: [Number(b.dataset.take)], assigned_to: (window.currentUser || {}).id } }); loadLeads(); } catch (e) { alert(e.message); } }
+  if (b.dataset.callback) {
+    const note = prompt(`Call back ${b.dataset.name}. Note (optional):`, ''); if (note === null) return;
+    const when = prompt('When? today, tomorrow, 2 days, next week, or a date like 10/28', 'tomorrow'); if (when === null) return;
+    const due = parseWhen(when);
+    try { await api('/api/broker/followups', { method: 'POST', body: { lead_id: Number(b.dataset.callback), title: `Call ${b.dataset.name}`, note, due_at: due ? due.toISOString() : null } });
+      await api(`/api/demand/leads/${b.dataset.callback}`, { method: 'PATCH', body: { notes: note ? `call back ${when}: ${note}` : `call back ${when}` } });
+      api('/api/broker/followups').then(rows => { const n = rows.filter(r => !r.done_at).length; $('fu-count').textContent = n ? `(${n})` : ''; }).catch(() => {});
+      loadLeads(); } catch (e) { alert(e.message); }
+  }
+  else if (b.dataset.take) { try { await api('/api/demand/leads/assign', { method: 'POST', body: { ids: [Number(b.dataset.take)], assigned_to: (window.currentUser || {}).id } }); loadLeads(); } catch (e) { alert(e.message); } }
   else if (b.dataset.worksfor) {
     const cur = (b.closest('.lead').querySelector('[data-worksfor]') && '') || '';
     const w = prompt('Who do they haul / work for? (operator names, comma-separated)', cur); if (w === null) return;
@@ -223,7 +254,7 @@ $('leads').addEventListener('click', async (ev) => {
 $('ld-all').onchange = () => { document.querySelectorAll('[data-sel]').forEach(c => { c.checked = $('ld-all').checked; c.checked ? ldSel.add(Number(c.dataset.sel)) : ldSel.delete(Number(c.dataset.sel)); }); $('ld-selcount').textContent = ldSel.size ? `${ldSel.size} selected` : ''; };
 $('ld-assign').onclick = async () => {
   const to = $('ld-assign-to').value; if (to === '' || !ldSel.size) { alert('Tick some names and pick a person.'); return; }
-  try { const r = await api('/api/demand/leads/assign', { method: 'POST', body: { ids: [...ldSel], assigned_to: Number(to) || null } }); $('ld-selcount').textContent = `${r.updated} handed over`; loadLeads(); } catch (e) { alert(e.message); }
+  try { const r = await api('/api/demand/leads/assign', { method: 'POST', body: { ids: [...ldSel], assigned_to: Number(to) || null } }); $('ld-selcount').textContent = `${r.updated} handed over`; loadLeads(); if ($('team-box').style.display !== 'none') loadTeam(); } catch (e) { alert(e.message); }
 };
 async function loadHeat() {
   try {
@@ -243,7 +274,7 @@ async function loadFollowups() {
   const line = (r) => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line);align-items:flex-start"><div style="flex:1;min-width:0">
       ${r.due_at ? `<span class="small ${overdue(r) && !r.done_at ? 'err' : 'muted'}">${new Date(r.due_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span> ` : ''}<b>${esc(r.note || r.title || '')}</b>
       ${r.title && r.note ? `<div class="small muted">${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>` : esc(r.title)}${r.price ? ' · ' + money(r.price) : ''}${r.buyer ? ' · ' + esc(r.buyer) : ''}</div>` : ''}
-    </div>${r.done_at ? `<span class="muted small">done</span>` : `<button class="small" onclick="fuDone(${r.id})">Done</button>`}<button class="small" onclick="fuDel(${r.id})" title="Remove">✕</button></div>`;
+    </div>${r.done_at ? `<span class="muted small">done</span>` : `<a href="/api/broker/followups/${r.id}.ics" title="Put it on your phone's calendar"><button class="small">📅</button></a><button class="small" onclick="fuDone(${r.id})">Done</button>`}<button class="small" onclick="fuDel(${r.id})" title="Remove">✕</button></div>`;
   $('followups').innerHTML = (open.length ? open.map(line).join('') : '<div class="muted" style="padding:10px 0">Nothing to follow up on. Tap <b>Follow up</b> on a deal card and it lands here.</div>')
     + (done.length ? `<details style="margin-top:10px"><summary class="small muted">Done this week (${done.length})</summary>${done.map(line).join('')}</details>` : '');
 }

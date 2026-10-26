@@ -68,6 +68,7 @@ router.post('/operators/:key/add-buyer', gate, async (req, res, next) => {
 const leads = require('../lib/demand/leads');
 const canAssign = (u) => ['admin', 'broker'].includes(u.role);
 router.get('/leads', gate, async (req, res, next) => { try { res.json(await leads.list(req.user, req.query)); } catch (e) { next(e); } });
+router.get('/team', gate, async (req, res, next) => { try { if (!canAssign(req.user)) return res.status(403).json({ error: 'broker or admin only' }); res.json(await leads.team(req.user)); } catch (e) { next(e); } });
 router.post('/leads/assign', gate, async (req, res, next) => {
   try {
     const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter(Boolean).slice(0, 500);

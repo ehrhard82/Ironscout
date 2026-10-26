@@ -464,3 +464,6 @@ ALTER TABLE lead_state ADD COLUMN IF NOT EXISTS works_for TEXT;
 ALTER TABLE buyers ADD COLUMN IF NOT EXISTS works_for TEXT;
 -- Broker's choice: can salesmen (agents) help themselves to unassigned leads, or only work what they're handed?
 ALTER TABLE organizations ADD COLUMN IF NOT EXISTS agents_pick BOOLEAN DEFAULT FALSE;
+-- Follow-up reminders go out once (email, and text when a phone is on file)
+ALTER TABLE followups ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMP;
+ALTER TABLE followups ADD COLUMN IF NOT EXISTS lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL;

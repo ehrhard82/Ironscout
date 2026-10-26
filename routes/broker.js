@@ -210,10 +210,22 @@ router.post('/followups', async (req, res, next) => {
   try {
     const b = req.body || {};
     const due = b.due_at ? new Date(b.due_at) : null;
-    const r = await pool.query(`INSERT INTO followups (user_id, listing_id, buyer_id, title, note, due_at) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [req.user.id, b.listing_id || null, b.buyer_id ? Number(b.buyer_id) : null, String(b.title || '').slice(0, 255) || null, String(b.note || '').slice(0, 2000) || null, due && !isNaN(due) ? due : null]);
+    const r = await pool.query(`INSERT INTO followups (user_id, listing_id, buyer_id, title, note, due_at, lead_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [req.user.id, b.listing_id || null, b.buyer_id ? Number(b.buyer_id) : null, String(b.title || '').slice(0, 255) || null, String(b.note || '').slice(0, 2000) || null, due && !isNaN(due) ? due : null, b.lead_id ? Number(b.lead_id) : null]);
     require('../lib/activity').log(req.user, 'follow-up set', b.title);
     res.status(201).json(r.rows[0]);
+  } catch (e) { next(e); }
+});
+router.get('/followups/:id.ics', async (req, res, next) => {
+  try {
+    const f = (await pool.query('SELECT * FROM followups WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id])).rows[0];
+    if (!f) return res.status(404).send('not found');
+    const start = f.due_at ? new Date(f.due_at) : new Date(Date.now() + 86400e3);
+    const fmt = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const esc = (t) => String(t || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//IronScout//EN', 'BEGIN:VEVENT', `UID:ironscout-followup-${f.id}@ironscout`, `DTSTAMP:${fmt(new Date())}`, `DTSTART:${fmt(start)}`, `DTEND:${fmt(new Date(start.getTime() + 30 * 60e3))}`,
+      `SUMMARY:${esc(f.title || f.note || 'IronScout follow-up')}`, `DESCRIPTION:${esc((f.note || '') + (f.url ? '\n' + f.url : ''))}`, 'BEGIN:VALARM', 'TRIGGER:-PT15M', 'ACTION:DISPLAY', 'DESCRIPTION:Follow up', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8'); res.setHeader('Content-Disposition', `attachment; filename="followup-${f.id}.ics"`); res.send(ics);
   } catch (e) { next(e); }
 });
 router.post('/followups/:id/done', async (req, res, next) => {
