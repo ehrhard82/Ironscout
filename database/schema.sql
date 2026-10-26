@@ -459,3 +459,6 @@ CREATE TABLE IF NOT EXISTS lead_state (
 ALTER TABLE lead_state ADD COLUMN IF NOT EXISTS phone VARCHAR(40);
 ALTER TABLE lead_state ADD COLUMN IF NOT EXISTS email VARCHAR(255);
 ALTER TABLE lead_state ADD COLUMN IF NOT EXISTS contact_name VARCHAR(120);
+-- Who a hauler / buyer works for (operators they deliver to), learned on the phone. Builds the map nobody publishes.
+ALTER TABLE lead_state ADD COLUMN IF NOT EXISTS works_for TEXT;
+ALTER TABLE buyers ADD COLUMN IF NOT EXISTS works_for TEXT;

@@ -86,12 +86,12 @@ router.patch('/:id', mine, async (req, res, next) => {
          email = COALESCE($5, email), city = COALESCE($6, city), state = CASE WHEN $7 = '-' THEN NULL ELSE COALESCE($7, state) END, notes = COALESCE($8, notes),
          status = COALESCE($9, status), active = COALESCE($10, active),
          deliver_city = COALESCE($11, deliver_city), deliver_state = CASE WHEN $12 = '-' THEN NULL ELSE COALESCE($12, deliver_state) END,
-         emails = COALESCE($13, emails), updated_at = NOW()
+         emails = COALESCE($13, emails), works_for = COALESCE($14, works_for), updated_at = NOW()
        WHERE id = $1 RETURNING id`,
       [req.params.id, b.company || null, b.contact_name ?? null, b.phone ?? null, b.email ?? null, b.city === undefined ? null : CITY(b.city),
        b.state === '' ? '-' : b.state ? STATE(b.state) : null, b.notes ?? null, b.status || null, typeof b.active === 'boolean' ? b.active : null,
        b.deliver_city === undefined ? null : CITY(b.deliver_city), b.deliver_state === '' ? '-' : b.deliver_state ? STATE(b.deliver_state) : null,
-       typeof b.emails === 'boolean' ? b.emails : null]);
+       typeof b.emails === 'boolean' ? b.emails : null, b.works_for === undefined ? null : String(b.works_for).trim().slice(0, 500)]);
     if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
     res.json({ buyer: (await list('b.id = $1 AND b.owner_user_id = $2', [req.params.id, req.user.id]))[0] });
   } catch (e) { next(e); }
