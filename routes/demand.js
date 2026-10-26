@@ -70,12 +70,20 @@ const canAssign = (u) => ['admin', 'broker'].includes(u.role);
 router.get('/leads', gate, async (req, res, next) => { try { res.json(await leads.list(req.user, req.query)); } catch (e) { next(e); } });
 router.post('/leads/assign', gate, async (req, res, next) => {
   try {
-    if (!canAssign(req.user)) return res.status(403).json({ error: 'Only the broker or admin hands out leads' });
     const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter(Boolean).slice(0, 500);
     const to = req.body?.assigned_to ? Number(req.body.assigned_to) : null;
+    if (!canAssign(req.user) && !(req.user.role === 'agent' && to === req.user.id)) return res.status(403).json({ error: 'Only the broker or admin hands out leads' });
     const n = await leads.assign(req.user, ids, to);
     log(req.user, to ? 'assigned leads' : 'unassigned leads', `${n}`);
     res.json({ ok: true, updated: n });
+  } catch (e) { next(e); }
+});
+// Broker: let salesmen pick from the unassigned pool (or not)
+router.post('/settings', gate, async (req, res, next) => {
+  try {
+    if (!canAssign(req.user)) return res.status(403).json({ error: 'broker or admin only' });
+    if (typeof req.body?.agents_pick === 'boolean') await pool.query(`UPDATE organizations SET agents_pick = $2 WHERE id = $1`, [req.user.org_id, req.body.agents_pick]);
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 router.patch('/leads/:id', gate, async (req, res, next) => {

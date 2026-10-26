@@ -64,6 +64,7 @@
       <select id="ld-trucks"><option value="">any fleet</option><option value="5" selected>5+ trucks</option><option value="20">20+ trucks</option><option value="50">50+ trucks</option></select>
     </div>
     <div class="row" style="gap:6px;margin-bottom:8px"><input id="ld-q" placeholder="name or city" style="flex:1 1 140px"><button class="primary" id="ld-go">Show</button></div>
+    <label class="small muted" id="ld-pick-row" style="display:none;margin-bottom:8px"><input type="checkbox" id="ld-pick"> let salesmen pick from the unassigned pool themselves (otherwise they only see what you hand them)</label>
     <div class="row" id="ld-bulk" style="gap:6px;margin-bottom:8px;display:none;align-items:center"><label class="small muted"><input type="checkbox" id="ld-all"> all shown</label><span class="small muted" id="ld-selcount"></span><select id="ld-assign-to" style="flex:1 1 120px"><option value="">— hand selected to —</option></select><button id="ld-assign">Assign</button></div>
     <div id="leads" class="small"><span class="muted">Tap Show.</span></div>
 
@@ -160,6 +161,8 @@ async function loadLeads() {
     if (!$('ld-county').dataset.filled && r.counties.length) { $('ld-county').dataset.filled = '1'; $('ld-county').innerHTML = '<option value="">all counties</option>' + r.counties.map(c => `<option value="${esc(c.county)}">${esc(c.county)} (${c.n})</option>`).join(''); }
     if (!$('ld-assigned').dataset.filled) { $('ld-assigned').dataset.filled = '1'; $('ld-assigned').innerHTML += r.team.map(t => `<option value="${t.id}">${esc(t.name || t.email)}</option>`).join(''); $('ld-assign-to').innerHTML = '<option value="">— hand selected to —</option>' + r.team.map(t => `<option value="${t.id}">${esc(t.name || t.email)}</option>`).join('') + '<option value="0">(unassign)</option>'; }
     $('ld-bulk').style.display = ldCanAssign && r.leads.length ? 'flex' : 'none';
+    if (ldCanAssign) { $('ld-pick-row').style.display = ''; $('ld-pick').checked = Boolean(r.agents_pick); $('ld-pick').onchange = async () => { try { await api('/api/demand/settings', { method: 'POST', body: { agents_pick: $('ld-pick').checked } }); } catch (e) { alert(e.message); } }; }
+    if (r.you_are_agent) { $('ld-assigned').innerHTML = `<option value="me">mine</option>${r.agents_pick ? '<option value="none">unassigned pool</option>' : ''}`; if (!r.agents_pick) $('ld-assigned').value = 'me'; }
     if (!r.leads.length) { $('leads').innerHTML = `<span class="muted">${Object.keys(r.counts).length ? 'Nothing matches those filters.' : 'No leads loaded yet. Admin → Fetch → Refresh permits.'}</span>`; return; }
     const kindLabel = { operator: 'permit holder', carrier: 'trucking / service', intake: 'from your link', dealer: 'dealer', import: 'imported' };
     $('leads').innerHTML = r.leads.map(l => `<div class="lead" data-id="${l.id}" style="padding:8px 0;border-bottom:1px solid var(--line)">
@@ -182,6 +185,7 @@ async function loadLeads() {
         ${l.kind !== 'operator' ? `<button style="padding:6px 10px" data-worksfor="${l.id}" title="Which operators they haul or work for. Builds the map: when that operator permits, you'll see who to call.">Works for</button>` : ''}
         ${l.kind === 'operator' ? `<button style="padding:6px 10px" data-leases="${esc(l.meta && l.meta.operator_no ? l.meta.operator_no : '')}">Leases</button>` : ''}
         ${!l.phone ? `<a href="https://www.google.com/search?q=${encodeURIComponent(l.name + ' ' + (l.st || 'Texas') + ' phone')}" target="_blank" rel="noopener"><button style="padding:6px 10px">Look up</button></a>` : ''}
+        ${!ldCanAssign && !l.assigned_to ? `<button class="primary" style="padding:6px 10px" data-take="${l.id}">Take it</button>` : ''}
         ${l.buyer_id ? `<a href="/broker.html#buyers"><button style="padding:6px 10px">Open buyer</button></a>` : `<button class="primary" style="padding:6px 10px" data-addbuyer="${l.id}">Add as buyer</button>`}
       </div>
       <div class="small muted" data-leasebox></div>
@@ -196,7 +200,8 @@ $('leads').addEventListener('change', async (ev) => {
 });
 $('leads').addEventListener('click', async (ev) => {
   const b = ev.target.closest('button'); if (!b) return;
-  if (b.dataset.worksfor) {
+  if (b.dataset.take) { try { await api('/api/demand/leads/assign', { method: 'POST', body: { ids: [Number(b.dataset.take)], assigned_to: (window.currentUser || {}).id } }); loadLeads(); } catch (e) { alert(e.message); } }
+  else if (b.dataset.worksfor) {
     const cur = (b.closest('.lead').querySelector('[data-worksfor]') && '') || '';
     const w = prompt('Who do they haul / work for? (operator names, comma-separated)', cur); if (w === null) return;
     try { await api(`/api/demand/leads/${b.dataset.worksfor}`, { method: 'PATCH', body: { works_for: w } }); loadLeads(); } catch (e) { alert(e.message); }

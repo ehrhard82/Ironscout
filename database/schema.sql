@@ -462,3 +462,5 @@ ALTER TABLE lead_state ADD COLUMN IF NOT EXISTS contact_name VARCHAR(120);
 -- Who a hauler / buyer works for (operators they deliver to), learned on the phone. Builds the map nobody publishes.
 ALTER TABLE lead_state ADD COLUMN IF NOT EXISTS works_for TEXT;
 ALTER TABLE buyers ADD COLUMN IF NOT EXISTS works_for TEXT;
+-- Broker's choice: can salesmen (agents) help themselves to unassigned leads, or only work what they're handed?
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS agents_pick BOOLEAN DEFAULT FALSE;
