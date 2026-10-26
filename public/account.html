@@ -69,6 +69,7 @@
 
   <details class="section" id="sec-alerts">
     <summary><h2>How to alert me</h2></summary>
+    <div class="card" style="margin-bottom:8px"><label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="brief-on" checked style="width:18px;height:18px;min-width:0;flex:0 0 18px;padding:0;margin:0;accent-color:var(--accent)"> Send me the 7 AM brief (my follow-ups, leads waiting on me, new deals for my buyers)</label></div>
     <div class="card">
       <div class="row">
         <div class="field"><span>Send me</span>
@@ -141,6 +142,7 @@ async function load() {
   $('min_discount').value = s.min_discount ?? 5; $('min_margin').value = s.min_margin ?? 2500;
   $('max_price').value = s.max_price || ''; $('min_year').value = s.min_year || ''; $('phone').value = s.phone || '';
   $('commission_percent').value = s.commission_percent ?? ''; $('yard_city').value = s.yard_city || ''; $('yard_state').value = s.yard_state || '';
+  $('brief-on').checked = !s.brief_opt_out;
   setRadio('channel', s.channel || 'email'); setRadio('frequency', s.frequency || 'daily');
   $('sms-note').innerHTML = (s.email_delivery === 'limited' && user.role !== 'admin' ? '<span style="color:var(--accent)">Email alerts are being switched on for your company. Your settings are saved; the first email will include everything you\'ve missed.</span><br>' : '')
     + (s.sms_available ? 'Texts show the top 3 deals and a link; email has the full list.' : 'Texting isn\'t switched on yet — email first, texts later.');
@@ -165,7 +167,7 @@ $('save').onclick = async () => {
       states: $('states').value, min_discount: $('min_discount').value, min_margin: $('min_margin').value,
       max_price: $('max_price').value || null, min_year: $('min_year').value || null,
       channel: radio('channel'), frequency: radio('frequency'), phone: $('phone').value,
-      yard_city: $('yard_city').value, yard_state: $('yard_state').value, commission_percent: $('commission_percent').value } });
+      yard_city: $('yard_city').value, yard_state: $('yard_state').value, commission_percent: $('commission_percent').value, brief_opt_out: !$('brief-on').checked } });
     if (user.has_access) {
       const ids = [...document.querySelectorAll('#machines input:checked')].map(i => Number(i.value));
       await api('/api/watchlists', { method: 'PUT', body: { product_ids: ids } });

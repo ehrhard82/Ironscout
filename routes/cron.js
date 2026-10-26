@@ -104,6 +104,7 @@ router.get('/alerts', (req, res) => {
   sendDigests().then(s => s.sent && console.log(`[cron] alerts: ${s.sent} sent`)).catch(e => console.error('cron alerts failed:', e));
   require('../lib/buyerMail').sendBuyerEmails().then(s => s.sent && console.log(`[cron] client emails: ${s.sent} sent`)).catch(e => console.error('client emails failed:', e.message));
   purgeExpiredSessions().catch(() => {});
+  require('../lib/brief').sendBriefs().then(s => s.sent && console.log(`[cron] morning briefs: ${s.sent}`)).catch(e => console.error('briefs failed:', e.message));
   require('../lib/alerts').sendFollowupReminders().then(s => s.sent && console.log(`[cron] follow-up reminders: ${s.sent}`)).catch(e => console.error('followup reminders failed:', e.message));
   catchUpIngest().catch(e => console.error('catch-up ingest failed:', e.message));
 });

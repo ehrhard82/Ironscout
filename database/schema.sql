@@ -467,3 +467,7 @@ ALTER TABLE organizations ADD COLUMN IF NOT EXISTS agents_pick BOOLEAN DEFAULT F
 -- Follow-up reminders go out once (email, and text when a phone is on file)
 ALTER TABLE followups ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMP;
 ALTER TABLE followups ADD COLUMN IF NOT EXISTS lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL;
+-- Morning brief: once a day per staff user, opt-out in settings
+ALTER TABLE users ADD COLUMN IF NOT EXISTS brief_sent_on VARCHAR(10);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS brief_opt_out BOOLEAN DEFAULT FALSE;
+ALTER TABLE deal_claims ADD COLUMN IF NOT EXISTS sold_at TIMESTAMP;

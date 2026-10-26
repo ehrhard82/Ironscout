@@ -33,6 +33,10 @@
       <label style="margin-left:auto" class="small muted"><input type="checkbox" id="hasbuyer" onchange="reloadDeals()"> only deals a buyer is waiting for</label>
     </div>
     <div id="deals" class="grid"></div>
+    <details id="ledger-box" style="margin-top:18px"><summary class="small muted">Commission ledger — what's been sold and earned</summary>
+      <div class="row" style="margin:8px 0"><a href="/api/broker/ledger.csv" class="small">Download spreadsheet</a></div>
+      <div id="ledger" class="small"></div>
+    </details>
     <details id="blocked-box" style="margin-top:18px"><summary class="small muted">Hidden listings ("Not this machine" and "Parts / attachment")</summary><div id="blocked" class="small" style="margin-top:8px"></div></details>
   </div>
 
@@ -123,6 +127,16 @@ async function load() {
   if (location.hash === '#buyers') showTab('buyers'); else if (location.hash === '#followups') showTab('followups'); else if (location.hash === '#demand') showTab('demand');
   api('/api/broker/followups').then(rows => { const n = rows.filter(r => !r.done_at).length; $('fu-count').textContent = n ? `(${n})` : ''; }).catch(() => {});
 }
+async function loadLedger() {
+  try {
+    const r = await api('/api/broker/ledger');
+    if (!r.rows.length) { $('ledger').innerHTML = '<span class="muted">Nothing marked sold yet. "Mark sold" on a claimed deal records the sale price and your commission here.</span>'; return; }
+    $('ledger').innerHTML = r.months.map(m => `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><b>${new Date(m.month + '-02').toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b> · ${m.deals} sold · ${money(m.sales)} in sales · <span style="color:var(--good)">${money(m.commission)} commission</span>
+      ${!r.mine && Object.keys(m.reps).length ? `<div class="muted">${Object.entries(m.reps).map(([n, c]) => `${esc(n)}: ${money(c)}`).join(' · ')}</div>` : ''}</div>`).join('')
+      + `<details style="margin-top:8px"><summary class="muted" style="cursor:pointer">Every sale (${r.rows.length})</summary><div style="margin-top:6px">${r.rows.map(x => `<div style="padding:4px 0;border-bottom:1px solid var(--line)"><span class="muted">${new Date(x.sold_at).toLocaleDateString()}</span> · ${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title)} · ${money(x.sale_price)} → <b>${money(x.commission)}</b>${x.rep && !r.mine ? ' · ' + esc(x.rep) : ''}${x.buyer ? ' · ' + esc(x.buyer) : ''}</div>`).join('')}</div></details>`;
+  } catch (e) { $('ledger').innerHTML = `<span style="color:var(--warn)">${esc(e.message)}</span>`; }
+}
+$('ledger-box').addEventListener('toggle', () => { if ($('ledger-box').open && !$('ledger').innerHTML) loadLedger(); });
 async function loadBlocked() {
   if (!window.CAN_HIDE) return;
   const rows = await api('/api/broker/blocked');

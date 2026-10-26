@@ -79,6 +79,27 @@ router.get('/blocked', curators, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Commission ledger: sold deals by month and by person. Brokers/admins see the company; agents see their own.
+router.get(['/ledger', '/ledger.csv'], async (req, res, next) => {
+  try {
+    const org = Number(req.user.org_id) || 0, mine = !['admin', 'broker'].includes(req.user.role);
+    const params = [org]; let where = `dc.org_id = $1 AND dc.status = 'sold'`;
+    if (mine) { params.push(req.user.id); where += ` AND dc.user_id = $2`; }
+    const rows = (await pool.query(`
+      SELECT COALESCE(dc.sold_at, dc.claimed_at) AS sold_at, u.name AS rep, l.title, p.name AS machine, dc.sale_price::float AS sale_price, dc.commission_earned::float AS commission, b.company AS buyer, dc.notes, l.url
+      FROM deal_claims dc JOIN listings l ON l.id = dc.listing_id JOIN products p ON p.id = l.product_id LEFT JOIN users u ON u.id = dc.user_id LEFT JOIN buyers b ON b.id = dc.buyer_id
+      WHERE ${where} ORDER BY 1 DESC LIMIT 1000`, params)).rows;
+    if (req.path.endsWith('.csv')) {
+      const cols = ['sold_at', 'rep', 'machine', 'title', 'buyer', 'sale_price', 'commission', 'notes', 'url'];
+      const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      res.setHeader('Content-Type', 'text/csv'); res.setHeader('Content-Disposition', 'attachment; filename="ironscout-commissions.csv"');
+      return res.send(cols.join(',') + '\n' + rows.map(x => cols.map(c => q(c === 'sold_at' ? new Date(x[c]).toISOString().slice(0, 10) : x[c])).join(',')).join('\n'));
+    }
+    const byMonth = {};
+    for (const r of rows) { const k = new Date(r.sold_at).toISOString().slice(0, 7); const m = (byMonth[k] ||= { month: k, deals: 0, sales: 0, commission: 0, reps: {} }); m.deals++; m.sales += r.sale_price || 0; m.commission += r.commission || 0; const rep = r.rep || '—'; m.reps[rep] = (m.reps[rep] || 0) + (r.commission || 0); }
+    res.json({ mine, rows, months: Object.values(byMonth) });
+  } catch (e) { next(e); }
+});
 router.get('/my-leads-count', async (req, res, next) => {
   try { res.json({ n: (await pool.query(`SELECT COUNT(*)::int AS n FROM lead_state WHERE org_id = $1 AND assigned_to = $2 AND status IN ('new','assigned')`, [req.user.org_id || 0, req.user.id])).rows[0].n }); } catch (e) { next(e); }
 });
@@ -160,7 +181,7 @@ router.post('/deals/:id/sold', async (req, res, next) => {
     const r = await pool.query(
       `INSERT INTO deal_claims (listing_id, org_id, user_id, status, sale_price, commission_earned, expires_at, notes)
        VALUES ($1,$2,$3,'sold',$4,$5,NULL,$6)
-       ON CONFLICT (listing_id, org_id) DO UPDATE SET status='sold', sale_price=EXCLUDED.sale_price, commission_earned=EXCLUDED.commission_earned,
+       ON CONFLICT (listing_id, org_id) DO UPDATE SET status='sold', sale_price=EXCLUDED.sale_price, commission_earned=EXCLUDED.commission_earned, sold_at=NOW(),
          expires_at=NULL, user_id = COALESCE(deal_claims.user_id, EXCLUDED.user_id), notes = COALESCE(EXCLUDED.notes, deal_claims.notes) RETURNING *`,
       [d.listing_id, req.user.org_id, req.user.id, salePrice, commission, req.body?.notes || `Sold for $${salePrice}; commission $${commission}`]);
     await logAction(d.id, req, 'sold', req.body?.notes || `Sold for $${salePrice}; commission $${commission}`);
