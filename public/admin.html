@@ -121,13 +121,30 @@ async function load() {
     return `<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><div style="flex:1 1 150px;min-width:0"><b>${esc(o.name)}</b><br><span class="muted small">${o.members} member${o.members === 1 ? '' : 's'}</span></div><label class="small muted" style="white-space:nowrap"><input type="checkbox" data-clientmail="${o.id}" ${o.client_emails ? 'checked' : ''}> client emails</label><label class="small muted" style="white-space:nowrap" title="Paid add-on: the Find buyers tab (permits, demand heat, intake link)"><input type="checkbox" data-demand="${o.id}" ${o.demand_access ? 'checked' : ''}> find buyers</label><button style="padding:6px 12px" data-orgedit="${o.id}">Edit</button><button style="padding:6px 12px" data-ren="${o.id}" data-name="${esc(o.name)}">Rename</button>${o.members ? '' : `<button class="danger" style="padding:6px 12px" data-delorg="${o.id}" data-name="${esc(o.name)}">Delete</button>`}</div>
       <div id="oe-${o.id}" hidden style="margin-top:8px">
         ${o.people.length ? o.people.map(p => `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:4px 0"><div style="flex:1 1 150px;min-width:0">${esc(p.name || p.email)}<br><span class="muted small">${esc(p.email)} · ${esc(p.role)}</span></div><select data-moveuser="${p.id}"><option value="">Move to…</option>${orgOpts(o.id)}</select></div>`).join('') : '<div class="muted small">Nobody yet.</div>'}
-        <div style="display:flex;gap:8px;margin-top:8px"><select id="oa-${o.id}" style="flex:1"><option value="">Add a person…</option>${outside.map(u => `<option value="${u.id}">${esc(u.name || u.email)} (${esc(u.email)}${u.org_name ? ' · now in ' + esc(u.org_name) : ''})</option>`).join('')}</select><button class="primary" data-addto="${o.id}">Add</button></div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><select id="oa-${o.id}" style="flex:1 1 160px;min-width:0;max-width:100%"><option value="">Move someone in…</option>${outside.map(u => `<option value="${u.id}">${esc(u.name || u.email)} (${esc(u.email)}${u.org_name ? ' · now in ' + esc(u.org_name) : ''})</option>`).join('')}</select><button data-addto="${o.id}">Move</button></div>
+        <details style="margin-top:10px"><summary class="small" style="cursor:pointer;color:var(--accent)">+ New salesman for ${esc(o.name)}</summary>
+          <div class="small muted" style="margin:6px 0">Makes their login right here, in this company. Agent = works deals and buyers; broker = also hands out leads and hides listings.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:100%">
+            <input id="nu-name-${o.id}" placeholder="Name" style="min-width:0"><input id="nu-email-${o.id}" type="email" placeholder="Email" style="min-width:0">
+            <input id="nu-pass-${o.id}" placeholder="Password (8+)" style="min-width:0"><select id="nu-role-${o.id}" style="min-width:0"><option value="agent">agent (salesman)</option><option value="broker">broker (manager)</option></select>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap"><button class="primary" data-newuser="${o.id}">Create login</button><span class="small muted" id="nu-msg-${o.id}"></span></div>
+        </details>
       </div></div>`; }).join('');
   $('orgs').onclick = async (ev) => {
     const r = ev.target.closest('[data-ren]'), d = ev.target.closest('[data-delorg]'), e = ev.target.closest('[data-orgedit]'), a = ev.target.closest('[data-addto]');
     if (r) renameOrg(r.dataset.ren, r.dataset.name); if (d) deleteOrg(d.dataset.delorg, d.dataset.name);
     if (e) { const box = document.getElementById('oe-' + e.dataset.orgedit); box.hidden = !box.hidden; }
     if (a) { const sel = document.getElementById('oa-' + a.dataset.addto); if (sel.value) { try { await api('/api/admin/users/' + sel.value, { method: 'PATCH', body: { org_id: a.dataset.addto } }); openOrg = a.dataset.addto; load(); } catch (err) { alert(err.message); } } }
+    const nu = ev.target.closest('[data-newuser]');
+    if (nu) {
+      const id = nu.dataset.newuser, g = (k) => document.getElementById(`nu-${k}-${id}`);
+      const body = { name: g('name').value.trim(), email: g('email').value.trim(), password: g('pass').value, role: g('role').value, org_id: Number(id) };
+      if (!body.email || body.password.length < 8) { g('msg').textContent = 'Email and a password of 8+ characters.'; return; }
+      nu.disabled = true;
+      try { await api('/api/admin/users', { method: 'POST', body }); g('msg').textContent = `Created. Text them: ${location.origin} · ${body.email} · the password you typed.`; openOrg = id; setTimeout(load, 1500); }
+      catch (err) { g('msg').textContent = err.message; nu.disabled = false; }
+    }
   };
   $('orgs').onchange = async (ev) => {
     const dm = ev.target.closest('[data-demand]'); if (dm) { try { await api('/api/admin/orgs/' + dm.dataset.demand, { method: 'PATCH', body: { demand_access: dm.checked } }); } catch (err) { alert(err.message); dm.checked = !dm.checked; } return; }
