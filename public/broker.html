@@ -13,6 +13,8 @@
   .form .wide { grid-column:1/-1; }
   details summary { cursor:pointer; color:var(--accent); }
   .lead select { min-width:118px; }
+  #heat table th:first-child, #heat table td:first-child { position:sticky; left:0; background:var(--card); z-index:1; text-align:left; padding-right:8px; box-shadow:2px 0 0 var(--line); }
+  #heat table th, #heat table td { padding:6px 6px; white-space:nowrap; }
 </style></head><body>
 <header id="hdr"></header>
 <main>
@@ -274,7 +276,7 @@ async function loadHeat() {
   try {
     const r = await api('/api/demand/heat');
     const rows = r.machines.filter(m => m.live_listings);
-    $('heat').innerHTML = (rows.length ? `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table style="width:100%;min-width:520px;border-collapse:collapse"><thead><tr class="muted"><th style="text-align:left">Machine</th><th>Live</th><th>With bids</th><th>Bids</th><th>Price ↑ 7d</th><th>Sold 30d vs prior</th></tr></thead><tbody>` +
+    $('heat').innerHTML = (rows.length ? `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table style="width:100%;min-width:520px;border-collapse:collapse"><thead><tr class="muted"><th style="text-align:left">Machine</th><th>Live</th><th>With bids</th><th>Bids</th><th title="Listings whose price rose this week. On an auction the price is the current bid, so this is bids landing.">Price ↑ 7d</th><th>Sold 30d vs prior</th></tr></thead><tbody>` +
       rows.map(m => { const trend = m.sold_30d > m.sold_prev_60d_avg ? '↑' : m.sold_30d < m.sold_prev_60d_avg ? '↓' : '→'; const hot = m.total_bids > 0 || m.prices_up_7d > 0 || trend === '↑';
         return `<tr style="border-top:1px solid var(--line)"><td><a href="/?q=${encodeURIComponent(m.machine)}">${esc(m.machine)}</a>${hot ? ' <span style="color:var(--good)">●</span>' : ''}</td><td style="text-align:center">${m.live_listings}</td><td style="text-align:center">${m.with_bids}${m.pct_auctions_bid ? ` <span class="muted">(${m.pct_auctions_bid}%)</span>` : ''}</td><td style="text-align:center">${m.total_bids}</td><td style="text-align:center">${m.prices_up_7d}</td><td style="text-align:center">${m.sold_30d} vs ${m.sold_prev_60d_avg} ${trend}</td></tr>`; }).join('') + '</tbody></table></div>' : '<span class="muted">No live listings yet.</span>')
       + (r.hot.length ? `<details style="margin-top:10px"><summary class="muted">Hottest lots right now (${r.hot.length})</summary><div style="margin-top:6px">` + r.hot.map(h => `<div style="padding:4px 0;border-bottom:1px solid var(--line)"><b>${money(h.price)}</b> · ${h.url ? `<a href="${esc(h.url)}" target="_blank" rel="noopener">${esc(h.title)}</a>` : esc(h.title)} <span class="muted">· ${esc(h.machine)} · ${h.bids ? h.bids + ' bids' : ''}${h.raises_7d ? ` · price up ${h.raises_7d}× this week` : ''} · ${esc([h.city, h.state].filter(Boolean).join(', '))}${h.auction_ends ? ' · ends ' + new Date(h.auction_ends).toLocaleDateString() : ''}</span></div>`).join('') + '</div></details>' : '<p class="muted" style="margin-top:8px">Bid counts start filling in with the next refresh; price moves show as they happen.</p>');
