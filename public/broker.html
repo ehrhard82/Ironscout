@@ -20,7 +20,7 @@
     <button class="on" id="tab-deals" onclick="showTab('deals')">Deals to work</button>
     <button id="tab-buyers" onclick="showTab('buyers')">Buyers</button>
     <button id="tab-followups" onclick="showTab('followups')">Follow-ups <span id="fu-count" class="muted small"></span></button>
-    <button id="tab-demand" onclick="showTab('demand')" style="display:none">Find buyers</button>
+    <button id="tab-demand" onclick="showTab('demand')" style="display:none">Find buyers <span id="ld-count" class="muted small"></span></button>
     <button class="primary" onclick="showTab('buyers');$('add-details').open=true;$('b-company').focus()">+ Add buyer</button>
   </div></div>
   <div class="section" id="pane-deals">
@@ -110,7 +110,7 @@ async function load() {
   renderKpis(dash);
   await Promise.all([reloadDeals(), loadBuyers(), loadBlocked()]);
   if (!window.CAN_HIDE) $('blocked-box').style.display = 'none';
-  if (window.currentUser && window.currentUser.demand_access) $('tab-demand').style.display = '';
+  if (window.currentUser && window.currentUser.demand_access) { $('tab-demand').style.display = ''; api('/api/broker/my-leads-count').then(r => { $('ld-count').textContent = r.n ? `(${r.n})` : ''; }).catch(() => {}); }
   if (location.hash === '#buyers') showTab('buyers'); else if (location.hash === '#followups') showTab('followups'); else if (location.hash === '#demand') showTab('demand');
   api('/api/broker/followups').then(rows => { const n = rows.filter(r => !r.done_at).length; $('fu-count').textContent = n ? `(${n})` : ''; }).catch(() => {});
 }

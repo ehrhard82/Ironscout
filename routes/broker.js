@@ -79,6 +79,9 @@ router.get('/blocked', curators, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get('/my-leads-count', async (req, res, next) => {
+  try { res.json({ n: (await pool.query(`SELECT COUNT(*)::int AS n FROM lead_state WHERE org_id = $1 AND assigned_to = $2 AND status IN ('new','assigned')`, [req.user.org_id || 0, req.user.id])).rows[0].n }); } catch (e) { next(e); }
+});
 router.get('/dashboard', async (req, res, next) => {
   try {
     const org = Number(req.user.org_id) || 0;
