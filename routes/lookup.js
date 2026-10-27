@@ -37,7 +37,9 @@ router.get('/', requireAccess, async (req, res, next) => {
                         message: `We don't track "${q}" yet. Request it and we'll add it if we can source listings.` });
     }
     const product = p.rows[0];
-    require('../lib/activity').log(req.user, 'looked up', product.name);
+    // one "looked up" per machine per 10 minutes: the page re-checks a fetching machine every 20 s, and that's not a new look
+    pool.query(`SELECT 1 FROM activity WHERE user_id = $1 AND action = 'looked up' AND detail = $2 AND at > NOW() - interval '10 minutes' LIMIT 1`, [req.user.id, product.name])
+      .then(r => { if (!r.rows.length) require('../lib/activity').log(req.user, 'looked up', product.name); }).catch(() => {});
     const u = (await pool.query('SELECT * FROM users WHERE id = $1', [req.user.id])).rows[0];
     const ignoreSettings = req.query.all === '1';
     const f = ignoreSettings ? { product_id: product.id } : effective(u, { product_id: product.id });
