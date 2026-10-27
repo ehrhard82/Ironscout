@@ -368,7 +368,11 @@ router.get('/status', async (req, res, next) => {
       const old = !m.last_fetch || Date.now() - new Date(m.last_fetch) > day;
       (m.listings + m.sales === 0 && old ? idle : shown).push(m);                           // old empty test machines
     }
+    const st = (await pool.query(`SELECT key, value FROM app_state WHERE key IN ('last_ingest_at', 'ingest_started_at', 'sat_out_today')`).catch(() => ({ rows: [] }))).rows;
+    const state = Object.fromEntries(st.map(x => [x.key, x.value]));
+    let satOut = []; try { satOut = JSON.parse(state.sat_out_today || '[]'); } catch {}
     res.json({ build: BUILD_STAMP(), budget, sources: names, queue: ingestQueue.status(), totals: counts.rows[0],
+               last_refresh_started: state.ingest_started_at || null, last_refresh_done: state.last_ingest_at || null, sat_out_today: satOut,
                machines: shown, hidden_idle: idle.map(m => m.name), recent_errors: errors.rows });
   } catch (e) { next(e); }
 });

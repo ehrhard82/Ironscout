@@ -53,9 +53,13 @@ async function dueTerms(all, force) {
                               WHERE p.name = ANY($1) AND r.source NOT LIKE '%:sold' AND r.finished_at IS NOT NULL AND r.error IS NULL
                                 AND r.started_at > NOW() - ($2 || ' hours')::interval AND r.started_at < NOW() - interval '12 hours'
                               GROUP BY p.name`, [all, String(slowHours)]).catch(() => ({ rows: [] }));
-  const quiet = new Set(r.rows.filter(x => x.runs > 0 && x.added === 0).map(x => x.name));
+  // Quiet machines rest every other day, staggered by name so the two halves alternate and the run never goes empty.
+  const dayNo = Math.floor(Date.now() / 86400e3);
+  const hash = (t) => [...t].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const quiet = new Set(r.rows.filter(x => x.runs > 0 && x.added === 0 && (hash(x.name) + dayNo) % 2 === 0).map(x => x.name));
   const due = all.filter(t => !quiet.has(t));
   if (quiet.size) console.log(`[cron] sitting out today (nothing new last pass): ${[...quiet].join(', ')}`);
+  await pool.query(`INSERT INTO app_state (key, value, updated_at) VALUES ('sat_out_today', $1, NOW()) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`, [JSON.stringify([...quiet])]).catch(() => {});
   return due;
 }
 async function runScheduledIngest(reason) {
