@@ -137,6 +137,7 @@ async function feed() {
 
 async function go(q, opts = {}) {
   clearTimeout(pollTimer);               // a pending check for some other machine must never replace this one
+  if (!(opts && opts.keep)) scope = 'deals';
   const keep = opts.keep && current === q, y = window.scrollY;
   $('q').value = q; current = q;
   try { localStorage.setItem('looked-up', '1'); } catch {}
@@ -179,7 +180,8 @@ async function go(q, opts = {}) {
     <div class="heading">
       <h3>${esc(r.product.name)} — ${r.count} deal${r.count === 1 ? '' : 's'} ${r.filters_applied ? 'matching your settings' : '(all deals, settings ignored)'}</h3>
       <div class="small sortrow"><label class="muted">Sort <select id="sort" onchange="sortBy=this.value;renderDeals()"><option value="score">best first</option><option value="ending">ending soonest</option><option value="margin">biggest profit</option><option value="price">cheapest</option><option value="newest">newest</option></select></label>
-        <label class="muted">Show <select id="kind" onchange="kindFilter=this.value;renderDeals()"><option value="all">everything</option><option value="listing">buy now only</option><option value="auction">auctions only</option></select></label>${viewToggle()}</div>
+        <label class="muted">Show <select id="kind" onchange="kindFilter=this.value;renderDeals()"><option value="all">everything</option><option value="listing">buy now only</option><option value="auction">auctions only</option></select></label>
+        <div class="viewtoggle" id="scope-toggle" style="margin-left:0"><button data-s="deals" onclick="setScope('deals')">Deals</button><button data-s="all" onclick="setScope('all')">All live</button></div>${viewToggle()}</div>
       <div class="small">
         ${r.filters_applied ? `<a href="#" onclick="showAll=true;go(current);return false">Show all ${r.all_deals} deals</a>` : `<a href="#" onclick="showAll=false;go(current);return false">Apply my settings</a>`}
         &nbsp;·&nbsp; <a href="/listings.html?m=${encodeURIComponent(r.product.name)}"><b>See every live listing</b></a> &nbsp;·&nbsp; <a href="/account.html">Change settings</a>${r.yard ? '' : ' &nbsp;·&nbsp; <a href="/account.html#sec-yard">Set my yard for delivered prices</a>'}
@@ -205,10 +207,36 @@ function renderDeals() {
   };
   const deals = [...r.deals].filter(d => kindFilter === 'all' || (kindFilter === 'auction' ? d.sale_type === 'auction' : d.sale_type !== 'auction')).sort(sorters[sortBy] || sorters.score);
   applyViewSoon();
+  document.querySelectorAll('#scope-toggle button').forEach(b => b.classList.toggle('on', b.dataset.s === scope));
+  if (scope === 'all' || (!deals.length && scope !== 'deals-forced')) { renderAllLive(r, deals.length); return; }
   $('list').innerHTML = deals.length ? deals.map(d => dealCard(d, { saved: d.saved })).join('')
     : `<div class="empty">Nothing under market right now${r.filters_applied ? ' that clears your settings' : ''}${kindFilter !== 'all' ? ` (${kindFilter === 'auction' ? 'auctions' : 'buy-now listings'} only)` : ''}.<br>${r.watched ? 'You\'ll be alerted when one shows up.' : `<button class="primary" style="margin-top:12px" onclick="watch(${r.product.id})">★ Watch this machine and alert me</button>`}</div>`;
 }
 async function watch(id) { await api('/api/watchlists', { method: 'POST', body: { product_id: id } }); go(current, { keep: true }); }
+// "All live": every listing for the machine, with how it sits against normal, so a thin machine never shows an empty page
+let scope = 'deals', liveCache = {};
+function setScope(sc) { scope = sc === 'deals' ? 'deals-forced' : sc; renderDeals(); }
+async function renderAllLive(r, dealCount) {
+  const name = r.product.name;
+  const why = scope === 'all' ? '' : `<div class="heading"><div class="small" style="color:var(--accent)">Nothing priced under market right now${r.filters_applied ? ' that clears your settings' : ''}, so here is everything live for ${esc(name)}. ${r.watched ? 'You\'ll be alerted when a deal shows up.' : ''}</div></div>`;
+  $('list').innerHTML = why + '<div class="empty">Loading every live listing…</div>';
+  try {
+    const d = liveCache[name] || (liveCache[name] = await api('/api/search/machine?name=' + encodeURIComponent(name)));
+    let rows = [...d.listings].filter(l => kindFilter === 'all' || (kindFilter === 'auction' ? l.sale_type === 'auction' : l.sale_type !== 'auction'));
+    const far = 8.64e15;
+    rows.sort({ price: (a, b) => a.price - b.price, ending: (a, b) => (a.auction_ends ? new Date(a.auction_ends) : far) - (b.auction_ends ? new Date(b.auction_ends) : far), newest: (a, b) => new Date(b.posted_date) - new Date(a.posted_date) }[sortBy] || ((a, b) => (a.vs_normal_pct ?? 999) - (b.vs_normal_pct ?? 999)));
+    const vs = (l) => l.vs_normal_pct == null ? '<span class="muted small">no comparison yet</span>' : l.vs_normal_pct <= -10 ? `<span class="small" style="color:var(--good)">${Math.abs(l.vs_normal_pct)}% under normal</span>` : l.vs_normal_pct >= 10 ? `<span class="small" style="color:var(--warn)">${l.vs_normal_pct}% over normal</span>` : `<span class="small muted">about normal (${l.vs_normal_pct > 0 ? '+' : ''}${l.vs_normal_pct}%)</span>`;
+    $('list').innerHTML = why + `<div class="heading"><div class="small muted">${rows.length} live listing${rows.length === 1 ? '' : 's'}${d.normal ? ` · normal is ${money(d.normal)}` : ''}${dealCount ? ` · ${dealCount} of them are deals` : ''}</div></div>` +
+      (rows.length ? rows.map(l => `<div class="card" onclick="cardTap(event,this)">
+        ${l.image_url ? `<a class="photo" href="${esc(l.url || '#')}" target="_blank" rel="noopener"><img src="${esc(l.image_url)}" alt="" loading="lazy" onerror="this.parentNode.remove()"></a>` : ''}
+        <div class="top"><div class="title">${esc(l.title)}</div></div>
+        <div class="price">${money(l.price)} ${vs(l)}</div>
+        <div class="small muted x">${l.sale_type === 'auction' ? 'Auction' + (l.auction_ends ? ' · ends ' + new Date(l.auction_ends).toLocaleDateString() : '') : 'Buy now / offer'} · ${esc([l.city, l.state].filter(Boolean).join(', ') || 'location unknown')}${l.year ? ' · ' + l.year : ''}${l.hours ? ' · ' + Number(l.hours).toLocaleString() + ' hrs' : ''} · ${esc(SOURCE_NAMES[l.source] || l.source)}</div>
+        <div class="actions">${l.url ? `<a href="${esc(l.url)}" target="_blank" rel="noopener" style="flex:1"><button class="primary" style="width:100%">View listing</button></a>` : ''}${blockBtn(l.id)}</div>
+      </div>`).join('') : '<div class="empty">No live listings for this machine right now.</div>');
+    applyViewSoon();
+  } catch (e) { $('list').innerHTML = why + `<div class="empty">${esc(e.message)}</div>`; }
+}
 let pollTimer = null;
 async function requestIt(term) {
   const r = await api('/api/watchlists/request', { method: 'POST', body: { term } });
