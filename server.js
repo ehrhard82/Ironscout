@@ -111,6 +111,7 @@ const PORT = Number(process.env.PORT || 3000);
 ensureSchema().catch(e => console.error('Schema setup failed (will keep serving; check DATABASE_URL):', e.message));
 app.listen(PORT, () => {
   console.log(`IronScout running at ${process.env.APP_URL || 'http://localhost:' + PORT}`);
+  setTimeout(() => require('./routes/cron').resumeIfInterrupted().then(r => r.resumed && console.log('[cron] picking up the interrupted refresh')).catch(e => console.error('resume check failed:', e.message)), 15_000);
   if (!process.env.STRIPE_SECRET_KEY) console.log('  (billing disabled: STRIPE_SECRET_KEY not set — admin/broker accounts still work)');
   if (!process.env.RESEND_API_KEY) console.log('  (email disabled: RESEND_API_KEY not set — emails print to console)');
 });

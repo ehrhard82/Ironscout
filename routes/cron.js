@@ -111,6 +111,31 @@ router.get('/alerts', (req, res) => {
 
 router.get('/ping', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
+// On boot: if a daily run was started and never finished (a deploy or restart cut it off), pick it back up now
+// instead of waiting for the 90-minute retry window. Machines already refreshed today sit out automatically.
+async function resumeIfInterrupted() {
+  const r = await pool.query(`SELECT key, value FROM app_state WHERE key IN ('last_ingest_at', 'ingest_started_at')`).catch(() => ({ rows: [] }));
+  const v = Object.fromEntries(r.rows.map(x => [x.key, new Date(x.value).getTime()]));
+  const started = v.ingest_started_at || 0, done = v.last_ingest_at || 0;
+  if (!(started > done) || Date.now() - started > 6 * 3600e3) return { resumed: false };
+  // only the machines that didn't get a finished run since this pass started
+  const all = await scheduledTerms();
+  const finished = new Set((await pool.query(`SELECT DISTINCT p.name FROM ingest_runs r JOIN products p ON p.id = r.product_id
+    WHERE r.started_at >= to_timestamp($1 / 1000.0) AND r.finished_at IS NOT NULL AND r.source NOT LIKE '%:sold' AND r.error IS NULL AND COALESCE(r.note,'') NOT LIKE 'skipped:%'`, [started])).rows.map(x => x.name));
+  const perMachineSources = (await pool.query(`SELECT p.name, COUNT(*)::int AS n FROM ingest_runs r JOIN products p ON p.id = r.product_id WHERE r.started_at >= to_timestamp($1 / 1000.0) AND r.finished_at IS NOT NULL AND r.source NOT LIKE '%:sold' GROUP BY p.name`, [started])).rows;
+  const sourceCount = require('../lib/sources').length;
+  const complete = new Set(perMachineSources.filter(x => x.n >= sourceCount).map(x => x.name));
+  const remaining = all.filter(t => !complete.has(t));
+  if (!remaining.length) { await markIngestDone(); return { resumed: false, reason: 'nothing left' }; }
+  setTimeout(() => {
+    for (const t of remaining) ingestQueue.enqueue(t, { force: true });
+    ingestQueue.enqueue('__done__');
+    console.log(`[cron] resumed interrupted refresh: ${remaining.length} machine(s) (${remaining.join(', ')})`);
+  }, 20_000);   // give the server a moment to settle after boot
+  return { resumed: true, remaining };
+}
+
 module.exports = router;
 module.exports.runScheduledIngest = runScheduledIngest;
+module.exports.resumeIfInterrupted = resumeIfInterrupted;
 module.exports.lastScheduledIngest = lastScheduledIngest;
