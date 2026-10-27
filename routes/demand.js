@@ -87,6 +87,17 @@ router.post('/settings', gate, async (req, res, next) => {
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
+// Hand-out rules (broker/admin)
+router.get('/rules', gate, async (req, res, next) => { try { if (!canAssign(req.user)) return res.status(403).json({ error: 'broker or admin only' }); res.json({ rules: await leads.rules(Number(req.user.org_id)) }); } catch (e) { next(e); } });
+router.post('/rules', gate, async (req, res, next) => {
+  try { if (!canAssign(req.user)) return res.status(403).json({ error: 'broker or admin only' }); const b = req.body || {};
+    const id = await leads.addRule(req.user, { kind: b.kind || null, fleet_min: b.fleet_min === '' || b.fleet_min == null ? null : Number(b.fleet_min), fleet_max: b.fleet_max === '' || b.fleet_max == null ? null : Number(b.fleet_max), county: b.county || null, assigned_to: Number(b.assigned_to) });
+    const applied = b.apply ? await leads.applyRules(Number(req.user.org_id), req.user.id) : 0;
+    log(req.user, 'added hand-out rule', `${b.kind || 'any'} ${b.fleet_min ?? ''}-${b.fleet_max ?? ''} ${b.county || ''}`.trim());
+    res.status(201).json({ id, applied }); } catch (e) { next(e); }
+});
+router.delete('/rules/:id', gate, async (req, res, next) => { try { if (!canAssign(req.user)) return res.status(403).json({ error: 'broker or admin only' }); await leads.deleteRule(req.user, Number(req.params.id)); res.json({ ok: true }); } catch (e) { next(e); } });
+router.post('/rules/apply', gate, async (req, res, next) => { try { if (!canAssign(req.user)) return res.status(403).json({ error: 'broker or admin only' }); const n = await leads.applyRules(Number(req.user.org_id), req.user.id); log(req.user, 'assigned leads', `${n} by rules`); res.json({ assigned: n }); } catch (e) { next(e); } });
 router.patch('/leads/:id', gate, async (req, res, next) => {
   try { res.json(await leads.update(req.user, Number(req.params.id), req.body || {})); } catch (e) { next(e); }
 });

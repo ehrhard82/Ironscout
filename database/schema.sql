@@ -471,3 +471,15 @@ ALTER TABLE followups ADD COLUMN IF NOT EXISTS lead_id INTEGER REFERENCES leads(
 ALTER TABLE users ADD COLUMN IF NOT EXISTS brief_sent_on VARCHAR(10);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS brief_opt_out BOOLEAN DEFAULT FALSE;
 ALTER TABLE deal_claims ADD COLUMN IF NOT EXISTS sold_at TIMESTAMP;
+-- Hand-out rules: the broker says "carriers with 0-20 trucks in Hockley go to Devon"; new leads sort themselves.
+CREATE TABLE IF NOT EXISTS lead_rules (
+  id          SERIAL PRIMARY KEY,
+  org_id      INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  kind        VARCHAR(20),                  -- carrier | operator | NULL = any
+  fleet_min   INTEGER,                      -- carriers only
+  fleet_max   INTEGER,
+  county      VARCHAR(40),                  -- NULL = anywhere
+  assigned_to INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at  TIMESTAMP DEFAULT NOW()
+);
