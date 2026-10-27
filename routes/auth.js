@@ -15,6 +15,11 @@ const APP_URL = () => (process.env.APP_URL || 'http://localhost:3000').replace(/
 
 router.post('/signup', auth.rateLimitLogin, async (req, res, next) => {
   try {
+    // Invite-only until self-serve plans exist: SIGNUPS=open in Render reopens the door. First-ever account is always allowed.
+    const count0 = await pool.query('SELECT COUNT(*)::int AS n FROM users');
+    if (count0.rows[0].n > 0 && String(process.env.SIGNUPS || 'closed').toLowerCase() !== 'open') {
+      return res.status(403).json({ error: 'IronScout is invite-only right now. Email ' + (process.env.CONTACT_EMAIL || 'the owner') + ' and we\'ll set you up.' });
+    }
     const { email, password, name } = req.body || {};
     if (!auth.validEmail(email)) return res.status(400).json({ error: 'Enter a valid email' });
     if (!auth.validPassword(password)) return res.status(400).json({ error: 'Password must be at least 8 characters' });
