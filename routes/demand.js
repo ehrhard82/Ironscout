@@ -119,13 +119,17 @@ router.post('/leads/sync', async (req, res, next) => {
 // prices moved up this week, the hottest listings. Uses data the refresh already stores.
 router.get('/heat', gate, async (req, res, next) => {
   try {
+    // "price up" = the listing is really higher now than a week ago (net, not every wiggle), by at least 2%.
+    // On an auction that's a bid landing; on a dealer listing it's rare and meaningful. US listings only.
     const r = await pool.query(`
       WITH live AS (
         SELECT l.*, p.name AS machine FROM listings l JOIN products p ON p.id = l.product_id
         WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()) AND COALESCE(l.country,'US') = 'US'
+      ), moved AS (
+        SELECT h.listing_id, (array_agg(h.old_price ORDER BY h.changed_at ASC))[1]::float AS week_ago, COUNT(*)::int AS changes
+        FROM price_history h WHERE h.changed_at > NOW() - interval '7 days' GROUP BY h.listing_id
       ), ups AS (
-        SELECT listing_id, COUNT(*)::int AS raises, MAX(new_price - old_price)::float AS biggest FROM price_history
-        WHERE changed_at > NOW() - interval '7 days' AND new_price > old_price GROUP BY listing_id
+        SELECT m.listing_id, m.changes FROM moved m JOIN listings l ON l.id = m.listing_id WHERE l.price::float > m.week_ago * 1.02
       )
       SELECT machine,
              COUNT(*)::int AS live_listings,
@@ -137,11 +141,16 @@ router.get('/heat', gate, async (req, res, next) => {
       FROM live LEFT JOIN ups ON ups.listing_id = live.id
       GROUP BY machine ORDER BY total_bids DESC, prices_up_7d DESC, live_listings DESC`);
     const hot = await pool.query(`
-      SELECT l.id, l.title, l.price::float AS price, l.bids, l.watchers, l.city, l.state, l.source, l.url, l.auction_ends, p.name AS machine,
-             (SELECT COUNT(*)::int FROM price_history h WHERE h.listing_id = l.id AND h.changed_at > NOW() - interval '7 days' AND h.new_price > h.old_price) AS raises_7d
-      FROM listings l JOIN products p ON p.id = l.product_id
-      WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()) AND (COALESCE(l.bids,0) > 0 OR l.id IN (SELECT listing_id FROM price_history WHERE changed_at > NOW() - interval '7 days' AND new_price > old_price))
-      ORDER BY COALESCE(l.bids,0) DESC, raises_7d DESC LIMIT 40`);
+      WITH moved AS (
+        SELECT h.listing_id, (array_agg(h.old_price ORDER BY h.changed_at ASC))[1]::float AS week_ago, COUNT(*)::int AS changes
+        FROM price_history h WHERE h.changed_at > NOW() - interval '7 days' GROUP BY h.listing_id
+      )
+      SELECT l.id, l.title, l.price::float AS price, l.bids, l.watchers, l.city, l.state, l.source, l.url, l.auction_ends, l.sale_type, p.name AS machine,
+             m.week_ago, CASE WHEN m.week_ago IS NOT NULL AND l.price::float > m.week_ago * 1.02 THEN ROUND(((l.price::float - m.week_ago) / m.week_ago * 100)::numeric)::int ELSE NULL END AS up_pct
+      FROM listings l JOIN products p ON p.id = l.product_id LEFT JOIN moved m ON m.listing_id = l.id
+      WHERE l.is_active AND (l.auction_ends IS NULL OR l.auction_ends > NOW()) AND COALESCE(l.country,'US') = 'US'
+        AND (COALESCE(l.bids,0) > 0 OR (m.week_ago IS NOT NULL AND l.price::float > m.week_ago * 1.02))
+      ORDER BY COALESCE(l.bids,0) DESC, up_pct DESC NULLS LAST LIMIT 40`);
     const soldPace = await pool.query(`
       SELECT p.name AS machine, COUNT(*) FILTER (WHERE s.sold_at > NOW() - interval '30 days')::int AS sold_30d, COUNT(*) FILTER (WHERE s.sold_at > NOW() - interval '90 days' AND s.sold_at <= NOW() - interval '30 days')::int AS sold_prev_60d
       FROM sales s JOIN products p ON p.id = s.product_id GROUP BY p.name`);
