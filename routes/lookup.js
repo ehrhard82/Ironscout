@@ -8,6 +8,7 @@
 const { COUNTRY_NAME } = require('../lib/sources/plantandequipment');
 const { JUNK_SQL, ATTACH_SQL } = require('../lib/pricing');
 const router = require('express').Router();
+const esc0 = (t) => String(t || '');
 const pool = require('../lib/db');
 const { requireAccess } = require('../lib/auth');
 const { matchSql, effective, DEAL_COLS } = require('./watchlists');
@@ -17,9 +18,14 @@ const { blockedSql, notPassedSql, attachClaims } = require('../lib/orgs');
 
 router.get('/', requireAccess, async (req, res, next) => {
   try {
-    const typed = String(req.query.q || '').trim().toLowerCase();
-    if (typed.length < 2) return res.status(400).json({ error: 'Type a machine, e.g. "wheel loader"' });
-    const resolved = await require('../lib/aliases').resolve(typed);   // "drill rig" -> the "drilling rig" we already track
+    const typedRaw = String(req.query.q || '').trim().toLowerCase();
+    if (typedRaw.length < 2) return res.status(400).json({ error: 'Type a machine, e.g. "wheel loader"' });
+    // "nitrogen pump 180k" -> machine "nitrogen unit", spec "180k" (used to narrow the listings, never to create a machine)
+    const aliases = require('../lib/aliases');
+    const split = aliases.splitSpec(typedRaw);
+    const typed = split.name.length >= 2 ? split.name : typedRaw;
+    const specs = split.name.length >= 2 ? split.specs : [];
+    const resolved = await aliases.resolve(typed);   // "drill rig" -> the "drilling rig" we already track
     const q = resolved.product ? resolved.product.name : (resolved.name || typed);
 
     // exact, then contains, then every word present
@@ -73,9 +79,16 @@ router.get('/', requireAccess, async (req, res, next) => {
     const us = market.rows.find(r => r.region_type === 'country');
     const qs = require('../lib/ingestQueue').status();
     deals.rows = require('../lib/dedupe').dedupe(deals.rows);
+    let specNote = null;
+    if (specs.length) {
+      const hit = (t) => specs.every(sp => String(t || '').toLowerCase().replace(/[,]/g, '').includes(sp.replace(/\s+/g, '')) || String(t || '').toLowerCase().includes(sp));
+      const narrowed = deals.rows.filter(d => hit(d.title));
+      if (narrowed.length) { deals.rows = narrowed; specNote = `Showing ${esc0(q)} listings matching "${specs.join(' ')}" (${narrowed.length}).`; }
+      else specNote = `No ${esc0(q)} listings mention "${specs.join(' ')}" right now; showing all of them.`;
+    }
     await attachClaims(deals.rows, req.user);
     res.json({
-      tracked: true, query: q, product, other_matches: p.rows.slice(1),
+      tracked: true, query: q, typed: typedRaw, specs, spec_note: specNote, product, other_matches: p.rows.slice(1),
       fetching: qs.running === product.name || qs.queued.includes(product.name),
       watched: watched.rows.length > 0,
       market: { us_median: us?.median_price || null, us_p25: us?.p25_price || null, us_p75: us?.p75_price || null, sample_size: us?.sample_size || 0,
