@@ -23,6 +23,7 @@
     <button id="tab-buyers" onclick="showTab('buyers')">Buyers</button>
     <button id="tab-followups" onclick="showTab('followups')">Follow-ups <span id="fu-count" class="muted small"></span></button>
     <button id="tab-demand" onclick="showTab('demand')" style="display:none">Find buyers <span id="ld-count" class="muted small"></span></button>
+    <button id="tab-team" onclick="showTab('team')" style="display:none">Your team <span id="team-count" class="muted small"></span></button>
     <button class="primary" onclick="showTab('buyers');$('add-details').open=true;$('b-company').focus()">+ Add buyer</button>
   </div></div>
   <div class="section" id="pane-deals">
@@ -49,13 +50,15 @@
     <div id="followups"></div>
   </div>
 
+  <div class="section" id="pane-team" style="display:none">
+    <h2>Your team <span class="muted small" id="team-meta"></span></h2>
+    <p class="muted small" style="margin-top:0">Who has what, how it's going, what's going stale, and everything that's happened. Reassign a stale lead right from here.</p>
+    <div id="team" class="small"></div>
+  </div>
+
   <div class="section" id="pane-demand" style="display:none">
     <h2>Find buyers</h2>
     <p class="muted small" style="margin-top:0">Who is about to need iron, where the bidding is, and a link that turns any conversation into a standing order.</p>
-
-    <details id="team-box" style="display:none;margin:4px 0 14px"><summary style="cursor:pointer"><h3 style="display:inline;margin:0">Your team</h3> <span class="muted small" id="team-meta"></span></summary>
-      <div id="team" class="small" style="margin-top:8px"></div>
-    </details>
 
     <h3 style="margin:14px 0 6px">Leads <span class="muted small" id="ld-meta"></span></h3>
     <p class="muted small" style="margin-top:0">Everyone we can find who's about to need iron, in one list. <b>Permit holders</b> are operators drilling this month (Texas Railroad Commission, daily). <b>Trucking &amp; service cos</b> are every carrier in TX/OK/NM that told the DOT it hauls oilfield equipment or heavy machinery (weekly); use the cargo and fleet filters to cut 30,000 names to the few hundred worth a call. Tick names and hand them to a salesman; each row has call, text, status and a note.</p>
@@ -125,8 +128,11 @@ async function load() {
   renderKpis(dash);
   await Promise.all([reloadDeals(), loadBuyers(), loadBlocked()]);
   if (!window.CAN_HIDE) $('blocked-box').style.display = 'none';
-  if (window.currentUser && window.currentUser.demand_access) { $('tab-demand').style.display = ''; api('/api/broker/my-leads-count').then(r => { $('ld-count').textContent = r.n ? `(${r.n})` : ''; }).catch(() => {}); }
-  if (location.hash === '#buyers') showTab('buyers'); else if (location.hash === '#followups') showTab('followups'); else if (location.hash === '#demand') showTab('demand');
+  if (window.currentUser && window.currentUser.demand_access) {
+    $('tab-demand').style.display = ''; api('/api/broker/my-leads-count').then(r => { $('ld-count').textContent = r.n ? `(${r.n})` : ''; }).catch(() => {});
+    if (['admin', 'broker'].includes(window.currentUser.role)) { $('tab-team').style.display = ''; api('/api/demand/team').then(r => { const stale = r.members.reduce((a, m) => a + m.stale, 0); $('team-count').textContent = stale ? `(${stale} stale)` : ''; }).catch(() => {}); }
+  }
+  if (location.hash === '#buyers') showTab('buyers'); else if (location.hash === '#followups') showTab('followups'); else if (location.hash === '#demand') showTab('demand'); else if (location.hash === '#team') showTab('team');
   api('/api/broker/followups').then(rows => { const n = rows.filter(r => !r.done_at).length; $('fu-count').textContent = n ? `(${n})` : ''; }).catch(() => {});
 }
 async function loadLedger() {
@@ -148,14 +154,14 @@ async function restoreListing(id) {
   try { await api(`/api/broker/listings/${id}/block`, { method: 'DELETE' }); await loadBlocked(); } catch (e) { alert(e.message); }
 }
 function showTab(t) {
-  for (const k of ['deals', 'buyers', 'followups', 'demand']) { $('pane-' + k).style.display = t === k ? '' : 'none'; $('tab-' + k).classList.toggle('on', t === k); }
+  for (const k of ['deals', 'buyers', 'followups', 'demand', 'team']) { $('pane-' + k).style.display = t === k ? '' : 'none'; $('tab-' + k).classList.toggle('on', t === k); }
   history.replaceState(null, '', '/broker.html' + (t === 'deals' ? '' : '#' + t));
   if (t === 'followups') loadFollowups();
   if (t === 'demand' && !window.demandLoaded) { window.demandLoaded = true; loadDemand(); }
+  if (t === 'team') { if (!ldTeam.length) api('/api/demand/leads?limit=1').then(r => { ldTeam = r.team; loadTeam(); }).catch(() => loadTeam()); else loadTeam(); }
 }
 // ---- Find buyers tab ----
 async function loadDemand() {
-  if (['admin', 'broker'].includes((window.currentUser || {}).role)) { $('team-box').style.display = ''; $('team-box').open = true; loadTeam(); }
   $('ld-go').onclick = loadLeads;
   for (const id of ['ld-kind', 'ld-county', 'ld-days', 'ld-status', 'ld-assigned', 'ld-sort', 'ld-cargo', 'ld-trucks']) $(id).onchange = loadLeads;
   if ((window.currentUser || {}).role === 'agent') $('ld-assigned').value = 'me';
@@ -177,7 +183,7 @@ async function loadTeam() {
   try {
     const r = await api('/api/demand/team');
     const stale = r.members.reduce((a, m) => a + m.stale, 0);
-    $('team-meta').textContent = `· ${r.members.length} people${stale ? ` · ${stale} lead${stale === 1 ? '' : 's'} going stale` : ''}`;
+    $('team-meta').textContent = `· ${r.members.length} ${r.members.length === 1 ? 'person' : 'people'}${stale ? ` · ${stale} lead${stale === 1 ? '' : 's'} going stale` : ''}`;
     const row = (m) => `<div style="padding:8px 0;border-bottom:1px solid var(--line)">
       <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><b>${esc(m.name || m.email)}</b> <span class="muted">${esc(m.role)}${m.last_seen ? ' · active ' + ago(m.last_seen) : ' · never logged activity'}</span></div>
       <div class="muted" style="margin-top:3px">leads: <b style="color:var(--text)">${m.open}</b> open · ${m.untouched} untouched${m.stale ? ` (<span style="color:var(--warn)">${m.stale} stale</span>)` : ''} · ${m.contacted} contacted · ${m.talking} talking · <span style="color:var(--good)">${m.won} won</span> · ${m.dead} dead</div>
@@ -270,7 +276,7 @@ $('leads').addEventListener('click', async (ev) => {
 $('ld-all').onchange = () => { document.querySelectorAll('[data-sel]').forEach(c => { c.checked = $('ld-all').checked; c.checked ? ldSel.add(Number(c.dataset.sel)) : ldSel.delete(Number(c.dataset.sel)); }); $('ld-selcount').textContent = ldSel.size ? `${ldSel.size} selected` : ''; };
 $('ld-assign').onclick = async () => {
   const to = $('ld-assign-to').value; if (to === '' || !ldSel.size) { alert('Tick some names and pick a person.'); return; }
-  try { const r = await api('/api/demand/leads/assign', { method: 'POST', body: { ids: [...ldSel], assigned_to: Number(to) || null } }); $('ld-selcount').textContent = `${r.updated} handed over`; loadLeads(); if ($('team-box').style.display !== 'none') loadTeam(); } catch (e) { alert(e.message); }
+  try { const r = await api('/api/demand/leads/assign', { method: 'POST', body: { ids: [...ldSel], assigned_to: Number(to) || null } }); $('ld-selcount').textContent = `${r.updated} handed over`; loadLeads(); } catch (e) { alert(e.message); }
 };
 async function loadHeat() {
   try {
