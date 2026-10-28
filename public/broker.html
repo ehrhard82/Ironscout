@@ -23,7 +23,7 @@
     <button class="on" id="tab-deals" onclick="showTab('deals')">Deals to work</button>
     <button id="tab-buyers" onclick="showTab('buyers')">Buyers</button>
     <button id="tab-followups" onclick="showTab('followups')">Follow-ups <span id="fu-count" class="muted small"></span></button>
-    <button id="tab-demand" onclick="showTab('demand')" style="display:none">Find buyers <span id="ld-count" class="muted small"></span></button>
+    <button id="tab-demand" onclick="showTab('demand')" style="display:none">Find buyers/sellers <span id="ld-count" class="muted small"></span></button>
     <button id="tab-team" onclick="showTab('team')" style="display:none">Your team <span id="team-count" class="muted small"></span></button>
     <button class="primary" onclick="showTab('buyers');$('add-details').open=true;$('b-company').focus()">+ Add buyer</button>
   </div></div>
@@ -69,7 +69,7 @@
   </div>
 
   <div class="section" id="pane-demand" style="display:none">
-    <h2>Find buyers</h2>
+    <h2>Find buyers/sellers</h2>
     <p class="muted small" style="margin-top:0">Who is about to need iron, where the bidding is, and a link that turns any conversation into a standing order.</p>
 
     <h3 style="margin:14px 0 6px">Leads <span class="muted small" id="ld-meta"></span></h3>
@@ -172,7 +172,7 @@ async function restoreListing(id) {
   try { await api(`/api/broker/listings/${id}/block`, { method: 'DELETE' }); await loadBlocked(); } catch (e) { alert(e.message); }
 }
 function showTab(t) {
-  seen('Broker board → ' + ({ deals: 'Deals to work', buyers: 'Buyers', followups: 'Follow-ups', demand: 'Find buyers', team: 'Your team' })[t]);
+  seen('Broker board → ' + ({ deals: 'Deals to work', buyers: 'Buyers', followups: 'Follow-ups', demand: 'Find buyers/sellers', team: 'Your team' })[t]);
   for (const k of ['deals', 'buyers', 'followups', 'demand', 'team']) { $('pane-' + k).style.display = t === k ? '' : 'none'; $('tab-' + k).classList.toggle('on', t === k); }
   history.replaceState(null, '', '/broker.html' + (t === 'deals' ? '' : '#' + t));
   if (t === 'followups') loadFollowups();
