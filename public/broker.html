@@ -279,8 +279,9 @@ async function loadLeads() {
     const personal = ['me'].includes($('ld-assigned').value) || (!['any', 'none'].includes($('ld-assigned').value));
     for (const id of ['ld-days', 'ld-cargo', 'ld-trucks', 'ld-new', 'ld-focus']) { $(id).disabled = personal; $(id).style.opacity = personal ? 0.45 : 1; }
     if (!r.leads.length) { $('leads').innerHTML = `<span class="muted">${Object.keys(r.counts).length ? 'Nothing matches those filters.' : 'No leads loaded yet. Admin → Fetch → Refresh permits.'}</span>`; return; }
+    const head = `<div class="muted" style="padding:4px 0 6px;border-bottom:1px solid var(--line)"><b style="color:var(--text)">${(r.total || r.count).toLocaleString()}</b> match these filters${r.total > r.count ? ` · showing the first ${r.count}` : ''}</div>`;
     const kindLabel = { operator: 'permit holder', carrier: 'trucking', service: 'service company', seller: 'going quiet · seller', newco: 'new company', intake: 'from your link', dealer: 'dealer', import: 'imported' };
-    $('leads').innerHTML = r.leads.map(l => `<div class="lead" data-id="${l.id}" style="padding:8px 0;border-bottom:1px solid var(--line)">
+    $('leads').innerHTML = head + r.leads.map(l => `<div class="lead" data-id="${l.id}" style="padding:8px 0;border-bottom:1px solid var(--line)">
       <div style="display:flex;gap:8px;align-items:flex-start">
         ${ldCanAssign ? `<input type="checkbox" data-sel="${l.id}" style="margin-top:4px">` : ''}
         <div style="flex:1 1 160px;min-width:0">
