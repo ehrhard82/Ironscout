@@ -19,11 +19,15 @@
   main { max-width:1200px; margin:0 auto; }
   .sortrow { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   .sortrow .viewtoggle { flex:0 0 auto; margin-left:auto; }
+  .scopebtns { display:flex; gap:8px; flex:0 0 auto; } .scopebtns button { min-height:32px; padding:4px 14px; font-size:13px; border-radius:8px; border:1px solid var(--line); background:transparent; }
+  .scopebtns button.on { background:var(--accent); color:#1a1200; border-color:var(--accent); font-weight:600; }
+  @media (max-width:480px) { .scopebtns { flex:1 1 100%; margin:4px 0 2px; } .scopebtns button { flex:1; } }
   .listhead { display:flex; align-items:center; gap:10px; flex-wrap:wrap; } .listhead h2 { margin:0; flex:1 1 auto; }
   @media (max-width:480px) { .listhead .viewtoggle { flex:1 1 100%; display:flex; } .listhead .viewtoggle button { flex:1; } }
   .sortrow label { display:flex; align-items:center; gap:6px; flex:1 1 150px; min-width:150px; }
   .sortrow select { flex:1 1 auto; min-width:110px; width:auto; padding:8px 8px; font-size:14px; }
-  @media (max-width:480px) { .sortrow .viewtoggle { flex:1 1 100%; margin-left:0; display:flex; } .sortrow .viewtoggle button { flex:1; } }
+  @media (max-width:480px) { .sortrow .viewtoggle { flex:1 1 100%; margin-left:0; display:flex; } .sortrow .viewtoggle button { flex:1; } .sortrow #scope-toggle { margin-top:6px; } .sortrow #scope-toggle + .viewtoggle { margin-top:10px; } }
+  .sortrow #scope-toggle { gap:8px; border:0; overflow:visible; } .sortrow #scope-toggle button { border:1px solid var(--line); border-radius:8px; }
   .setup { max-width:760px; margin:0 auto 10px; padding:0 20px; }
   .setup .card { gap:4px; }
   .setup h3 { margin:0 0 4px; font-size:16px; }
@@ -98,7 +102,7 @@ try { viewMode = localStorage.getItem('view') || (window.innerWidth < 700 ? 'com
 function setView(m) { viewMode = m; try { localStorage.setItem('view', m); } catch {} applyView(); }
 function applyView() {
   $('list').classList.toggle('compact', viewMode === 'compact');
-  document.querySelectorAll('.viewtoggle button').forEach(b => b.classList.toggle('on', b.dataset.v === viewMode));
+  document.querySelectorAll('.viewtoggle button[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === viewMode));
 }
 const viewToggle = () => `<div class="viewtoggle"><button data-v="compact" onclick="setView('compact')">Compact</button><button data-v="full" onclick="setView('full')">Full</button></div>`;
 
@@ -182,7 +186,7 @@ async function go(q, opts = {}) {
       <div class="small sortrow"><label class="muted">Sort <select id="sort" onchange="sortBy=this.value;renderDeals()"><option value="score">best first</option><option value="ending">ending soonest</option><option value="margin">biggest profit</option><option value="price">cheapest</option><option value="pricey">priciest</option><option value="closest">closest to my yard</option><option value="newest">newest</option></select></label>
         <label class="muted">Show <select id="kind" onchange="kindFilter=this.value;renderDeals()"><option value="all">everything</option><option value="listing">buy now only</option><option value="auction">auctions only</option></select></label>
         <label class="muted">Where <select id="where" onchange="whereFilter=this.value;renderDeals()"><option value="">anywhere</option></select></label>
-        <div class="viewtoggle" id="scope-toggle" style="margin-left:0"><button data-s="deals" onclick="setScope('deals')">Deals</button><button data-s="all" onclick="setScope('all')">All live</button></div>${viewToggle()}</div>
+        <div class="scopebtns" id="scope-toggle"><button data-s="deals" onclick="setScope('deals')">Deals</button><button data-s="all" onclick="setScope('all')">All live</button></div>${viewToggle()}</div>
       <div class="small">
         ${r.filters_applied ? `<a href="#" onclick="showAll=true;go(current);return false">Show all ${r.all_deals} deals</a>` : `<a href="#" onclick="showAll=false;go(current);return false">Apply my settings</a>`}
         &nbsp;·&nbsp; <a href="/listings.html?m=${encodeURIComponent(r.product.name)}"><b>See every live listing</b></a> &nbsp;·&nbsp; <a href="/account.html">Change settings</a>${r.yard ? '' : ' &nbsp;·&nbsp; <a href="/account.html#sec-yard">Set my yard for delivered prices</a>'}
@@ -227,8 +231,9 @@ function renderDeals() {
   if (scope !== 'all') fillWhere(r.deals);
   const deals = [...r.deals].filter(d => kindFilter === 'all' || (kindFilter === 'auction' ? d.sale_type === 'auction' : d.sale_type !== 'auction')).filter(whereMatch).sort(sorters[sortBy] || sorters.score);
   applyViewSoon();
-  document.querySelectorAll('#scope-toggle button').forEach(b => b.classList.toggle('on', b.dataset.s === scope));
-  if (scope === 'all' || (!r.deals.length && scope !== 'deals-forced')) { renderAllLive(r, deals.length); return; }
+  const showingAll = scope === 'all' || (!r.deals.length && scope !== 'deals-forced');
+  document.querySelectorAll('#scope-toggle button').forEach(b => b.classList.toggle('on', (b.dataset.s === 'all') === showingAll));   // lit = what's on screen
+  if (showingAll) { renderAllLive(r, deals.length); return; }
   $('list').innerHTML = deals.length ? deals.map(d => dealCard(d, { saved: d.saved })).join('')
     : `<div class="empty">Nothing under market right now${r.filters_applied ? ' that clears your settings' : ''}${kindFilter !== 'all' ? ` (${kindFilter === 'auction' ? 'auctions' : 'buy-now listings'} only)` : ''}${whereFilter ? ' in that area' : ''}.<br>${r.watched ? 'You\'ll be alerted when one shows up.' : `<button class="primary" style="margin-top:12px" onclick="watch(${r.product.id})">★ Watch this machine and alert me</button>`}</div>`;
 }
