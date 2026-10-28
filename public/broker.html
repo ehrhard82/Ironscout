@@ -87,7 +87,7 @@
       <select id="ld-days" data-for="operator seller"><option value="">any time</option><option value="7">permitted this week</option><option value="30" selected>last 30 days</option><option value="90">last 90 days</option></select>
       <select id="ld-focus" data-for="carrier service trucking"><option value="oilfield" selected>oilfield outfits only</option><option value="">everyone (incl. construction, electrical…)</option></select>
       <select id="ld-cargo" data-for="carrier service trucking"><option value="">any cargo</option><option value="oilfield" selected>oilfield equipment</option><option value="machinery">heavy machinery</option></select>
-      <select id="ld-trucks" data-for="carrier service trucking"><option value="">any fleet</option><option value="0-20">0–20 trucks</option><option value="21-50" selected>21–50 trucks</option><option value="51-100">51–100 trucks</option><option value="101-">100+ trucks</option></select>
+      <select id="ld-trucks" data-for="carrier trucking"><option value="">any fleet</option><option value="0-20">0–20 trucks</option><option value="21-50" selected>21–50 trucks</option><option value="51-100">51–100 trucks</option><option value="101-">100+ trucks</option></select>
       <select id="ld-new" data-for="carrier service trucking newco"><option value="">any age</option><option value="90">new companies (90 days)</option><option value="365">registered this year</option></select>
     </div>
     <div class="row" style="gap:6px;margin-bottom:6px">
@@ -222,7 +222,7 @@ function fillCounties(r) {
   if (typeof r !== 'object' || r instanceof Event) loadLeads();
 }
 function ldQuery() {
-  const v = (id) => $(id).value;
+  const v = (id) => $(id).style.display === 'none' ? '' : $(id).value;   // a dropdown hidden for this category doesn't filter
   const p = new URLSearchParams(); const k = v('ld-kind');
   if (k === 'service') { p.set('kind', 'carrier'); p.set('segment', 'service'); } else if (k === 'trucking') { p.set('kind', 'carrier'); p.set('segment', 'trucking'); } else p.set('kind', k);
   if (v('ld-state')) p.set('st', v('ld-state')); if (v('ld-county')) p.set('county', v('ld-county')); if (v('ld-days')) p.set('days', v('ld-days'));
