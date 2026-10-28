@@ -13,6 +13,7 @@
   .form .wide { grid-column:1/-1; }
   details summary { cursor:pointer; color:var(--accent); }
   .lead select { min-width:118px; }
+  #heat table { display:table; overflow:visible; max-height:none; }   /* the wrapper div scrolls, so the pinned first column lines up */
   #heat table th:first-child, #heat table td:first-child { position:sticky; left:0; background:var(--card); z-index:1; text-align:left; padding-right:8px; box-shadow:2px 0 0 var(--line); }
   #heat table th, #heat table td { padding:6px 6px; white-space:nowrap; }
 </style></head><body>
