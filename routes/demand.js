@@ -122,6 +122,10 @@ router.post('/leads/:id/add-buyer', gate, async (req, res, next) => {
 router.post('/carriers/refresh', async (req, res, next) => { try { if (!isAdmin(req.user)) return res.status(403).json({ error: 'admin only' }); res.json(require('../lib/demand/fmcsa').refreshInBackground()); } catch (e) { next(e); } });
 router.get('/carriers/status', async (req, res, next) => { try { if (!isAdmin(req.user)) return res.status(403).json({ error: 'admin only' }); res.json(await require('../lib/demand/fmcsa').status()); } catch (e) { next(e); } });
 router.get('/carriers/sample', async (req, res, next) => { try { if (!isAdmin(req.user)) return res.status(403).json({ error: 'admin only' }); res.json(await require('../lib/demand/fmcsa').sample()); } catch (e) { next(e); } });
+// More feeds (OK/NM permits, TX new businesses, TX plugging): refresh / status / sample — admin
+router.post('/more/refresh', async (req, res, next) => { try { if (!isAdmin(req.user)) return res.status(403).json({ error: 'admin only' }); res.json(require('../lib/demand/more').refreshInBackground()); } catch (e) { next(e); } });
+router.get('/more/status', async (req, res, next) => { try { if (!isAdmin(req.user)) return res.status(403).json({ error: 'admin only' }); res.json(await require('../lib/demand/more').status()); } catch (e) { next(e); } });
+router.get('/more/sample', async (req, res, next) => { try { if (!isAdmin(req.user)) return res.status(403).json({ error: 'admin only' }); res.json(await require('../lib/demand/more').sample(String(req.query.feed || 'okPermits'))); } catch (e) { res.status(500).json({ error: e.message, body: e.response ? JSON.stringify(e.response.data).slice(0, 400) : undefined }); } });
 router.post('/leads/sync', async (req, res, next) => {
   try { if (!isAdmin(req.user)) return res.status(403).json({ error: 'admin only' }); res.json({ synced: await leads.syncOperators() }); } catch (e) { next(e); }
 });

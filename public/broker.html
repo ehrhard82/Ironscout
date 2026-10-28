@@ -57,7 +57,7 @@
     <h3 style="margin:18px 0 6px">Hand-out rules</h3>
     <p class="muted small" style="margin-top:0">Decide once who gets what. New leads sort themselves as they come in; <b>Apply now</b> deals out everything unassigned that matches. First matching rule wins; nothing already assigned is touched.</p>
     <div class="row" style="gap:6px;flex-wrap:wrap">
-      <select id="rl-kind"><option value="">any source</option><option value="carrier">trucking &amp; service</option><option value="operator">permit holders</option><option value="seller">operators going quiet (sellers)</option></select>
+      <select id="rl-kind"><option value="">any source</option><option value="carrier">trucking &amp; service</option><option value="operator">permit holders</option><option value="seller">operators going quiet (sellers)</option><option value="newco">new companies (TX)</option></select>
       <select id="rl-fleet"><option value="">any fleet</option><option value="0-20">0–20 trucks</option><option value="21-50">21–50 trucks</option><option value="51-100">51–100 trucks</option><option value="101-">100+ trucks</option></select>
       <input id="rl-county" placeholder="county / city (blank = anywhere)" style="flex:1 1 150px">
       <select id="rl-to"><option value="">→ who</option></select>
@@ -74,7 +74,7 @@
     <h3 style="margin:14px 0 6px">Leads <span class="muted small" id="ld-meta"></span></h3>
     <p class="muted small" style="margin-top:0">Everyone we can find who's about to need iron, in one list. <b>Permit holders</b> are operators drilling this month (Texas Railroad Commission, daily). <b>Trucking &amp; service companies</b> are every carrier in TX/OK/NM that told the DOT it hauls oilfield equipment or heavy machinery (weekly); use the cargo and fleet filters to cut 30,000 names to the few hundred worth a call. Tick names and hand them to a salesman; each row has call, text, status and a note.</p>
     <div class="row" style="gap:6px;margin-bottom:6px">
-      <select id="ld-kind"><option value="all">all sources</option><option value="operator">permit holders (buying)</option><option value="carrier">trucking &amp; service companies (buying)</option><option value="seller">operators going quiet (selling)</option><option value="intake">from my link</option><option value="dealer">dealers</option></select>
+      <select id="ld-kind"><option value="all">all sources</option><option value="operator">permit holders (buying)</option><option value="carrier">trucking &amp; service companies (buying)</option><option value="seller">operators going quiet / plugging (selling)</option><option value="newco">new oilfield &amp; trucking companies (TX)</option><option value="intake">from my link</option><option value="dealer">dealers</option></select>
       <select id="ld-county" style="flex:1 1 130px"><option value="">all counties</option></select>
       <select id="ld-days"><option value="">any time</option><option value="7">active this week</option><option value="30" selected>last 30 days</option><option value="90">last 90 days</option></select>
     </div>
@@ -197,7 +197,7 @@ async function loadRules() {
   try {
     const r = await api('/api/demand/rules');
     if (!$('rl-to').dataset.filled && ldTeam.length) { $('rl-to').dataset.filled = '1'; $('rl-to').innerHTML = '<option value="">→ who</option>' + ldTeam.map(t => `<option value="${t.id}">${esc(t.name || t.email)}</option>`).join(''); }
-    const kindLabel = { carrier: 'trucking & service', operator: 'permit holders', seller: 'sellers' };
+    const kindLabel = { carrier: 'trucking & service', operator: 'permit holders', seller: 'sellers', newco: 'new companies' };
     $('rules').innerHTML = r.rules.length ? r.rules.map(x => `<div class="row" style="padding:5px 0;border-bottom:1px solid var(--line);gap:8px"><span style="flex:1">${esc(kindLabel[x.kind] || 'any source')}${x.fleet_min != null || x.fleet_max != null ? ` · ${x.fleet_min ?? 0}–${x.fleet_max ?? '∞'} trucks` : ''}${x.county ? ` · ${esc(x.county)}` : ' · anywhere'} → <b>${esc(x.assigned_name)}</b></span><button class="small" data-delrule="${x.id}">✕</button></div>`).join('') : '<span class="muted">No rules yet.</span>';
   } catch (e) { $('rules').innerHTML = `<span style="color:var(--warn)">${esc(e.message)}</span>`; }
 }
@@ -231,7 +231,7 @@ async function loadLeads() {
   try {
     const r = await api('/api/demand/leads?' + ldQuery());
     ldTeam = r.team; ldCanAssign = ['admin', 'broker'].includes((window.currentUser || {}).role);
-    $('ld-meta').textContent = `· ${Object.entries(r.counts).map(([k, n]) => `${n} ${({ operator: 'permit holders', carrier: 'trucking/service', seller: 'sellers', intake: 'from links', dealer: 'dealers' })[k] || k}`).join(', ') || 'none yet'}${r.mine ? ` · ${r.mine} on your plate` : ''}`;
+    $('ld-meta').textContent = `· ${Object.entries(r.counts).map(([k, n]) => `${n} ${({ operator: 'permit holders', carrier: 'trucking/service', seller: 'sellers', newco: 'new companies', intake: 'from links', dealer: 'dealers' })[k] || k}`).join(', ') || 'none yet'}${r.mine ? ` · ${r.mine} on your plate` : ''}`;
     if (!$('ld-county').dataset.filled && r.counties.length) { $('ld-county').dataset.filled = '1'; $('ld-county').innerHTML = '<option value="">all counties</option>' + r.counties.map(c => `<option value="${esc(c.county)}">${esc(c.county)} (${c.n})</option>`).join(''); }
     if (!$('ld-assigned').dataset.filled) { $('ld-assigned').dataset.filled = '1'; $('ld-assigned').innerHTML += r.team.map(t => `<option value="${t.id}">${esc(t.name || t.email)}</option>`).join(''); $('ld-assign-to').innerHTML = '<option value="">— hand selected to —</option>' + r.team.map(t => `<option value="${t.id}">${esc(t.name || t.email)}</option>`).join('') + '<option value="0">(unassign)</option>'; }
     $('ld-bulk').style.display = ldCanAssign && r.leads.length ? 'flex' : 'none';
@@ -241,13 +241,13 @@ async function loadLeads() {
     const personal = ['me'].includes($('ld-assigned').value) || (!['any', 'none'].includes($('ld-assigned').value));
     for (const id of ['ld-days', 'ld-cargo', 'ld-trucks', 'ld-new']) { $(id).disabled = personal; $(id).style.opacity = personal ? 0.45 : 1; }
     if (!r.leads.length) { $('leads').innerHTML = `<span class="muted">${Object.keys(r.counts).length ? 'Nothing matches those filters.' : 'No leads loaded yet. Admin → Fetch → Refresh permits.'}</span>`; return; }
-    const kindLabel = { operator: 'permit holder', carrier: 'trucking / service', seller: 'going quiet · seller', intake: 'from your link', dealer: 'dealer', import: 'imported' };
+    const kindLabel = { operator: 'permit holder', carrier: 'trucking / service', seller: 'going quiet · seller', newco: 'new company', intake: 'from your link', dealer: 'dealer', import: 'imported' };
     $('leads').innerHTML = r.leads.map(l => `<div class="lead" data-id="${l.id}" style="padding:8px 0;border-bottom:1px solid var(--line)">
       <div style="display:flex;gap:8px;align-items:flex-start">
         ${ldCanAssign ? `<input type="checkbox" data-sel="${l.id}" style="margin-top:4px">` : ''}
         <div style="flex:1 1 160px;min-width:0">
           <b>${esc(l.name)}</b> <span class="pill">${kindLabel[l.kind] || l.kind}</span>${l.buyer_id ? ' <span class="pill" style="background:#1f3a2a">buyer</span>' : ''}<br>
-          <span class="muted">${esc(l.signal_text || '')}${l.counties ? ' · ' + esc(l.counties) : (l.city ? ' · ' + esc([l.city, l.st].filter(Boolean).join(', ')) : '')}</span>
+          <span class="muted">${esc(l.signal_text || '')}${l.counties ? ' · ' + esc(l.counties) + (l.st && l.st !== 'TX' ? ' (' + esc(l.st) + ')' : '') : (l.city ? ' · ' + esc([l.city, l.st].filter(Boolean).join(', ')) : '')}</span>
           ${l.phone || l.email ? `<br><span class="muted">${l.contact_name ? esc(l.contact_name) + ' · ' : ''}${l.phone ? `<a href="tel:${esc(l.phone)}">${esc(l.phone)}</a> · <a href="sms:${esc(l.phone)}">text</a>` : ''}${l.phone && l.email ? ' · ' : ''}${l.email ? `<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>` : ''}</span>` : ''}
           ${l.works_for ? `<div class="muted" style="margin-top:2px">works for: <span style="color:var(--text)">${esc(l.works_for)}</span></div>` : ''}
           ${l.known_haulers ? `<div style="margin-top:2px;color:var(--good)">haulers you know for them: ${esc(l.known_haulers)}</div>` : ''}

@@ -23,6 +23,7 @@
     <button id="refresh-all-btn" title="Same thing the 6 AM job does: every watched machine, one after another">Refresh every machine</button>
     <button id="permits-btn" title="Texas RRC drilling permits → Find buyers tab. Free; also runs with the 6 AM job">Refresh permits</button>
     <button id="carriers-btn" title="US DOT carrier registry: oilfield haulers in TX/OK/NM with phones → Find buyers tab. Free; weekly with the 6 AM job">Refresh carriers</button>
+    <button id="more-btn" title="Oklahoma + New Mexico permits, Texas new oilfield/trucking companies, Texas plugging reports → Find buyers tab. Free; daily with the 6 AM job">Refresh OK/NM + new cos</button>
     <button id="sold-btn" title="Pull completed sales (hammer prices) for this machine now">Fetch sold prices</button>
     <button id="recalc-btn" title="Rebuild deals from existing listings without fetching">Recalculate deals</button>
     <button id="alerts-btn" title="Send any due hourly/daily/weekly digests now">Send due alerts</button>
@@ -206,6 +207,21 @@ $('permits-btn').onclick = async () => {
     };
     setTimeout(poll, 3000);
   } catch (e) { $('ingest-msg').textContent = 'Permits: ' + e.message; }
+};
+$('more-btn').onclick = async () => {
+  $('ingest-msg').textContent = 'Pulling Oklahoma/New Mexico permits, Texas new companies and plugging reports…';
+  try {
+    const st = await api('/api/demand/more/refresh', { method: 'POST', body: {} });
+    if (!st.started) { $('ingest-msg').textContent = 'More leads: already running'; return; }
+    const t0 = Date.now();
+    const poll = async () => {
+      const r = await api('/api/demand/more/status');
+      if (r.running && Date.now() - t0 < 10 * 60e3) { $('ingest-msg').textContent = `More leads: working… ${Math.round((Date.now() - t0) / 1000)}s`; return setTimeout(poll, 4000); }
+      const l = r.last || {}; const line = (k, label) => l[k] ? `${label}: ${l[k].error ? 'ERROR ' + l[k].error : `${l[k].saved ?? 0} saved (${l[k].operators ?? l[k].fetched ?? '?'} seen)`}` : '';
+      $('ingest-msg').textContent = [line('okPermits', 'Oklahoma'), line('nmWells', 'New Mexico'), line('txNewBiz', 'TX new cos'), line('txPlugging', 'TX plugging')].filter(Boolean).join(' · ') + ' — Broker board → Find buyers.';
+    };
+    setTimeout(poll, 3000);
+  } catch (e) { $('ingest-msg').textContent = 'More leads: ' + e.message; }
 };
 $('carriers-btn').onclick = async () => {
   $('ingest-msg').textContent = 'Pulling oilfield haulers from the DOT registry in the background…';
