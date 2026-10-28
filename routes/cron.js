@@ -41,6 +41,8 @@ async function markIngestDone() {
   await pool.query(`INSERT INTO app_state (key, value, updated_at) VALUES ('last_ingest_at', $1, NOW())
                     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`, [new Date().toISOString()]).catch(() => {});
   console.log('[cron] daily refresh finished');
+  // the free lead feeds run after the machines, one at a time, so they can never get in the way of the refresh
+  setTimeout(() => require('../lib/demand/more').refreshAll().catch(e => console.error('more leads failed:', e.message)), 5_000);
 }
 require('../lib/ingestQueue').onDone = markIngestDone;
 // Quiet machines refresh every other day: if the last full pass for a machine (within SLOW_HOURS) added
@@ -74,7 +76,6 @@ async function runScheduledIngest(reason) {
   ingestQueue.enqueue('__done__');                        // sentinel: runs after the last machine
   deactivateStale(14).catch(() => {});
   require('../lib/demand/rrc').refresh().catch(e => console.error('permits refresh failed:', e.message));   // free; runs alongside
-  require('../lib/demand/more').refreshAll().catch(e => console.error('more leads failed:', e.message));   // OK/NM permits, TX new businesses, plugging — free, daily
   const fmcsa = require('../lib/demand/fmcsa');
   fmcsa.due().then(d => d && fmcsa.refresh()).catch(e => console.error('carriers refresh failed:', e.message));   // weekly
   console.log(`[cron] daily refresh started (${reason}): ${terms.length} machine(s)`);
