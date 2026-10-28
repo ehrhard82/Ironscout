@@ -483,3 +483,6 @@ CREATE TABLE IF NOT EXISTS lead_rules (
   created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at  TIMESTAMP DEFAULT NOW()
 );
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS p5_status VARCHAR(2);      -- A active, I inactive, D delinquent (RRC P-5)
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS p5_status_prev VARCHAR(2);
+ALTER TABLE operators ADD COLUMN IF NOT EXISTS p5_status_changed_at TIMESTAMP;
