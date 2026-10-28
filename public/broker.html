@@ -72,21 +72,25 @@
     <p class="muted small" style="margin-top:0">Who is about to need iron, where the bidding is, and a link that turns any conversation into a standing order.</p>
 
     <h3 style="margin:14px 0 6px">Leads <span class="muted small" id="ld-meta"></span></h3>
-    <p class="muted small" style="margin-top:0">Everyone we can find who's about to need iron, in one list. <b>Permit holders</b> are operators drilling this month (Texas Railroad Commission, daily). <b>Trucking &amp; service companies</b> are every carrier in TX/OK/NM that told the DOT it hauls oilfield equipment or heavy machinery (weekly); use the cargo and fleet filters to cut 30,000 names to the few hundred worth a call. Tick names and hand them to a salesman; each row has call, text, status and a note.</p>
+    <p class="muted small" style="margin-top:0">Two kinds of lead. <b>Permit holders</b> are operators drilling right now (state permit filings, daily) — pick a state and county. <b>Trucking &amp; service companies</b> are carriers that told the DOT they haul oilfield equipment or heavy machinery — use cargo and fleet size to cut 30,000 names to the few hundred worth a call. Tick names and hand them to a salesman; each row has call, text, status and a note.</p>
+    <input type="hidden" id="ld-kind" value="operator">
+    <div class="row" id="ld-kinds" style="gap:6px;margin-bottom:8px;flex-wrap:wrap">
+      <button class="primary" data-kind="operator" style="padding:8px 12px">Permit holders</button>
+      <button data-kind="carrier" style="padding:8px 12px">Trucking &amp; service</button>
+      <select id="ld-more" style="padding:8px"><option value="">more…</option><option value="seller">operators going quiet (selling)</option><option value="newco">new companies (TX)</option><option value="intake">from my link</option><option value="dealer">dealers</option><option value="all">everything</option></select>
+    </div>
     <div class="row" style="gap:6px;margin-bottom:6px">
-      <select id="ld-kind"><option value="all">all sources</option><option value="operator">permit holders (buying)</option><option value="carrier">trucking &amp; service companies (buying)</option><option value="seller">operators going quiet / plugging (selling)</option><option value="newco">new oilfield &amp; trucking companies (TX)</option><option value="intake">from my link</option><option value="dealer">dealers</option></select>
-      <select id="ld-county" style="flex:1 1 130px"><option value="">all counties</option></select>
-      <select id="ld-days"><option value="">any time</option><option value="7">active this week</option><option value="30" selected>last 30 days</option><option value="90">last 90 days</option></select>
+      <select id="ld-state" style="flex:0 1 110px"><option value="">any state</option></select>
+      <select id="ld-county" data-for="operator seller" style="flex:1 1 130px"><option value="">all counties</option></select>
+      <select id="ld-days" data-for="operator seller"><option value="">any time</option><option value="7">permitted this week</option><option value="30" selected>last 30 days</option><option value="90">last 90 days</option></select>
+      <select id="ld-cargo" data-for="carrier"><option value="">any cargo</option><option value="oilfield" selected>oilfield equipment</option><option value="machinery">heavy machinery</option></select>
+      <select id="ld-trucks" data-for="carrier"><option value="">any fleet</option><option value="0-20">0–20 trucks</option><option value="21-50" selected>21–50 trucks</option><option value="51-100">51–100 trucks</option><option value="101-">100+ trucks</option></select>
+      <select id="ld-new" data-for="carrier newco"><option value="">any age</option><option value="90">new companies (90 days)</option><option value="365">registered this year</option></select>
     </div>
     <div class="row" style="gap:6px;margin-bottom:6px">
       <select id="ld-status"><option value="open">open (not dead/customer)</option><option value="all">any status</option><option value="new">new</option><option value="assigned">assigned</option><option value="contacted">contacted</option><option value="talking">talking</option><option value="customer">customer</option><option value="dead">dead</option></select>
       <select id="ld-assigned"><option value="any">anyone</option><option value="me">mine</option><option value="none">unassigned</option></select>
       <select id="ld-sort"><option value="hot">hottest first</option><option value="newest">newest</option><option value="touched">recently worked</option><option value="name">A–Z</option></select>
-    </div>
-    <div class="row" style="gap:6px;margin-bottom:6px">
-      <select id="ld-cargo"><option value="">any cargo</option><option value="oilfield" selected>oilfield equipment</option><option value="machinery">heavy machinery</option></select>
-      <select id="ld-new"><option value="">any age</option><option value="90">new companies (90 days)</option><option value="365">registered this year</option></select>
-      <select id="ld-trucks"><option value="">any fleet</option><option value="0-20">0–20 trucks</option><option value="21-50" selected>21–50 trucks</option><option value="51-100">51–100 trucks</option><option value="101-">100+ trucks</option></select>
     </div>
     <div class="row" style="gap:6px;margin-bottom:8px"><input id="ld-q" placeholder="name or city" style="flex:1 1 140px"><button class="primary" id="ld-go">Show</button></div>
     <label class="small muted" id="ld-pick-row" style="display:none;margin-bottom:8px"><input type="checkbox" id="ld-pick"> let salesmen pick from the unassigned pool themselves (otherwise they only see what you hand them)</label>
@@ -176,8 +180,11 @@ function showTab(t) {
 // ---- Find buyers tab ----
 async function loadDemand() {
   $('ld-go').onclick = loadLeads;
-  for (const id of ['ld-kind', 'ld-county', 'ld-days', 'ld-status', 'ld-assigned', 'ld-sort', 'ld-cargo', 'ld-trucks', 'ld-new']) $(id).onchange = loadLeads;
-  $('ld-kind').addEventListener('change', () => { if ($('ld-kind').value === 'seller' || $('ld-kind').value === 'operator') { $('ld-trucks').value = ''; $('ld-cargo').value = ''; } });
+  for (const id of ['ld-county', 'ld-days', 'ld-status', 'ld-assigned', 'ld-sort', 'ld-cargo', 'ld-trucks', 'ld-new']) $(id).onchange = loadLeads;
+  $('ld-state').addEventListener('change', fillCounties);
+  $('ld-kinds').onclick = (ev) => { const b = ev.target.closest('[data-kind]'); if (!b) return; setKind(b.dataset.kind); };
+  $('ld-more').onchange = () => { if ($('ld-more').value) setKind($('ld-more').value); };
+  setKind('operator', true);
   if ((window.currentUser || {}).role === 'agent') $('ld-assigned').value = 'me';
   loadLeads(); loadHeat();
   try { const r = await api('/api/demand/intake-link'); $('intake-url').value = r.url;
@@ -186,9 +193,24 @@ async function loadDemand() {
   } catch (e) { $('intake-url').value = e.message; }
 }
 let ldSel = new Set(), ldTeam = [], ldCanAssign = false;
+// one category at a time: the dropdowns that only make sense for that category show, the rest hide
+function setKind(k, quiet) {
+  $('ld-kind').value = k;
+  for (const b of $('ld-kinds').querySelectorAll('[data-kind]')) b.classList.toggle('primary', b.dataset.kind === k);
+  if (!['operator', 'carrier'].includes(k)) $('ld-more').value = k; else $('ld-more').value = '';
+  for (const el of document.querySelectorAll('#pane-demand [data-for]')) el.style.display = (k === 'all' || el.dataset.for.split(' ').includes(k)) ? '' : 'none';
+  if (!quiet) loadLeads();
+}
+function fillCounties(r) {
+  const st = $('ld-state').value, list = (window.ldCounties || []).filter(c => !st || c.st === st);
+  const cur = $('ld-county').value;
+  $('ld-county').innerHTML = '<option value="">all counties</option>' + list.map(c => `<option value="${esc(c.county)}">${esc(c.county)}${st ? '' : ' (' + esc(c.st || '?') + ')'} · ${c.n}</option>`).join('');
+  if ([...$('ld-county').options].some(o => o.value === cur)) $('ld-county').value = cur;
+  if (typeof r !== 'object' || r instanceof Event) loadLeads();
+}
 function ldQuery() {
   const v = (id) => $(id).value;
-  const p = new URLSearchParams(); p.set('kind', v('ld-kind')); if (v('ld-county')) p.set('county', v('ld-county')); if (v('ld-days')) p.set('days', v('ld-days'));
+  const p = new URLSearchParams(); p.set('kind', v('ld-kind')); if (v('ld-state')) p.set('st', v('ld-state')); if (v('ld-county')) p.set('county', v('ld-county')); if (v('ld-days')) p.set('days', v('ld-days'));
   p.set('status', v('ld-status')); p.set('assigned', v('ld-assigned')); p.set('sort', v('ld-sort')); if (v('ld-q').trim()) p.set('q', v('ld-q').trim());
   if (v('ld-cargo')) p.set('cargo', v('ld-cargo')); if (v('ld-trucks')) p.set('fleet', v('ld-trucks')); if (v('ld-new')) p.set('newer_days', v('ld-new'));
   return p.toString();
@@ -232,7 +254,8 @@ async function loadLeads() {
     const r = await api('/api/demand/leads?' + ldQuery());
     ldTeam = r.team; ldCanAssign = ['admin', 'broker'].includes((window.currentUser || {}).role);
     $('ld-meta').textContent = `· ${Object.entries(r.counts).map(([k, n]) => `${n} ${({ operator: 'permit holders', carrier: 'trucking/service', seller: 'sellers', newco: 'new companies', intake: 'from links', dealer: 'dealers' })[k] || k}`).join(', ') || 'none yet'}${r.mine ? ` · ${r.mine} on your plate` : ''}`;
-    if (!$('ld-county').dataset.filled && r.counties.length) { $('ld-county').dataset.filled = '1'; $('ld-county').innerHTML = '<option value="">all counties</option>' + r.counties.map(c => `<option value="${esc(c.county)}">${esc(c.county)} (${c.n})</option>`).join(''); }
+    if (!$('ld-state').dataset.filled && r.states && r.states.length) { $('ld-state').dataset.filled = '1'; $('ld-state').innerHTML = '<option value="">any state</option>' + r.states.map(x => `<option value="${esc(x.st)}">${esc(x.st)} · ${x.n}</option>`).join(''); }
+    if (!window.ldCounties && r.counties.length) { window.ldCounties = r.counties; fillCounties(r); }
     if (!$('ld-assigned').dataset.filled) { $('ld-assigned').dataset.filled = '1'; $('ld-assigned').innerHTML += r.team.map(t => `<option value="${t.id}">${esc(t.name || t.email)}</option>`).join(''); $('ld-assign-to').innerHTML = '<option value="">— hand selected to —</option>' + r.team.map(t => `<option value="${t.id}">${esc(t.name || t.email)}</option>`).join('') + '<option value="0">(unassign)</option>'; }
     $('ld-bulk').style.display = ldCanAssign && r.leads.length ? 'flex' : 'none';
     if (ldCanAssign) { $('ld-pick-row').style.display = ''; $('ld-pick').checked = Boolean(r.agents_pick); $('ld-pick').onchange = async () => { try { await api('/api/demand/settings', { method: 'POST', body: { agents_pick: $('ld-pick').checked } }); } catch (e) { alert(e.message); } }; }
