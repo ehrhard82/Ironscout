@@ -235,3 +235,14 @@ async function brokerSold(id) {
   const p = prompt('Sale price ($)?'); if (!p) return;
   return brokerAct(id, 'sold', { salePrice: Number(String(p).replace(/[^0-9.]/g, '')) });
 }
+
+// Floating "back to top" arrow on every page: shows once you've scrolled a screen down (long lead lists, long deal lists)
+(function () {
+  const b = document.createElement('button'); b.id = 'totop'; b.type = 'button'; b.textContent = '↑'; b.title = 'Back to top'; b.setAttribute('aria-label', 'Back to top');
+  b.style.cssText = 'position:fixed;right:14px;bottom:18px;z-index:50;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--accent);color:#1a1200;font-size:22px;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:0;cursor:pointer';
+  b.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+  const place = () => { (document.body ? document.body : document.documentElement).appendChild(b); };
+  if (document.body) place(); else document.addEventListener('DOMContentLoaded', place);
+  let shown = false;
+  window.addEventListener('scroll', () => { const want = window.scrollY > window.innerHeight * 0.8; if (want !== shown) { shown = want; b.style.display = want ? 'flex' : 'none'; } }, { passive: true });
+})();
