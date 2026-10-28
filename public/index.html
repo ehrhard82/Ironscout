@@ -179,8 +179,9 @@ async function go(q, opts = {}) {
     ${r.spec_note ? `<div class="heading"><div class="small" style="color:var(--accent)">${esc(r.spec_note)}</div></div>` : ''}
     <div class="heading">
       <h3>${esc(r.product.name)} — ${r.count} deal${r.count === 1 ? '' : 's'} ${r.filters_applied ? 'matching your settings' : '(all deals, settings ignored)'}</h3>
-      <div class="small sortrow"><label class="muted">Sort <select id="sort" onchange="sortBy=this.value;renderDeals()"><option value="score">best first</option><option value="ending">ending soonest</option><option value="margin">biggest profit</option><option value="price">cheapest</option><option value="newest">newest</option></select></label>
+      <div class="small sortrow"><label class="muted">Sort <select id="sort" onchange="sortBy=this.value;renderDeals()"><option value="score">best first</option><option value="ending">ending soonest</option><option value="margin">biggest profit</option><option value="price">cheapest</option><option value="pricey">priciest</option><option value="closest">closest to my yard</option><option value="newest">newest</option></select></label>
         <label class="muted">Show <select id="kind" onchange="kindFilter=this.value;renderDeals()"><option value="all">everything</option><option value="listing">buy now only</option><option value="auction">auctions only</option></select></label>
+        <label class="muted">Where <select id="where" onchange="whereFilter=this.value;renderDeals()"><option value="">anywhere</option></select></label>
         <div class="viewtoggle" id="scope-toggle" style="margin-left:0"><button data-s="deals" onclick="setScope('deals')">Deals</button><button data-s="all" onclick="setScope('all')">All live</button></div>${viewToggle()}</div>
       <div class="small">
         ${r.filters_applied ? `<a href="#" onclick="showAll=true;go(current);return false">Show all ${r.all_deals} deals</a>` : `<a href="#" onclick="showAll=false;go(current);return false">Apply my settings</a>`}
@@ -193,7 +194,23 @@ async function go(q, opts = {}) {
   lastResult = r; $('sort').value = sortBy; $('kind').value = kindFilter; renderDeals();
   if (keep) window.scrollTo(0, y);       // quiet refresh: stay where you were
 }
-let lastResult = null, sortBy = 'score', kindFilter = 'all';
+let lastResult = null, sortBy = 'score', kindFilter = 'all', whereFilter = '';
+// "Where": the states in this result (with counts), plus distance rings when a yard is set
+const milesOf = (x) => x.landed && x.landed.miles != null ? x.landed.miles : (x.miles != null ? x.miles : null);
+function whereMatch(x) {
+  if (!whereFilter) return true;
+  if (whereFilter.startsWith('mi:')) { const m = milesOf(x); return m != null && m <= Number(whereFilter.slice(3)); }
+  return (x.state || '') === whereFilter;
+}
+function fillWhere(rows) {
+  const sel = $('where'); if (!sel) return;
+  const by = {}; let anyMiles = false;
+  for (const x of rows) { if (x.state) by[x.state] = (by[x.state] || 0) + 1; if (milesOf(x) != null) anyMiles = true; }
+  const states = Object.entries(by).sort((a, b) => b[1] - a[1]);
+  sel.innerHTML = '<option value="">anywhere</option>' + (anyMiles ? '<option value="mi:250">within 250 mi of my yard</option><option value="mi:500">within 500 mi of my yard</option><option value="mi:1000">within 1,000 mi of my yard</option>' : '') + states.map(([st, n]) => `<option value="${esc(st)}">${esc(st)} (${n})</option>`).join('');
+  if ([...sel.options].some(o => o.value === whereFilter)) sel.value = whereFilter; else { whereFilter = ''; sel.value = ''; }
+  const closest = $('sort').querySelector('option[value="closest"]'); if (closest) closest.disabled = !anyMiles;
+}
 function applyViewSoon() { setTimeout(applyView, 0); }
 function renderDeals() {
   const r = lastResult; if (!r) return;
@@ -203,14 +220,17 @@ function renderDeals() {
     ending: (a, b) => (a.auction_ends ? new Date(a.auction_ends) : far) - (b.auction_ends ? new Date(b.auction_ends) : far),
     margin: (a, b) => b.estimated_margin - a.estimated_margin,
     price: (a, b) => a.price - b.price,
+    pricey: (a, b) => b.price - a.price,
+    closest: (a, b) => (milesOf(a) ?? 1e9) - (milesOf(b) ?? 1e9),
     newest: (a, b) => new Date(b.flagged_at) - new Date(a.flagged_at),
   };
-  const deals = [...r.deals].filter(d => kindFilter === 'all' || (kindFilter === 'auction' ? d.sale_type === 'auction' : d.sale_type !== 'auction')).sort(sorters[sortBy] || sorters.score);
+  if (scope !== 'all') fillWhere(r.deals);
+  const deals = [...r.deals].filter(d => kindFilter === 'all' || (kindFilter === 'auction' ? d.sale_type === 'auction' : d.sale_type !== 'auction')).filter(whereMatch).sort(sorters[sortBy] || sorters.score);
   applyViewSoon();
   document.querySelectorAll('#scope-toggle button').forEach(b => b.classList.toggle('on', b.dataset.s === scope));
-  if (scope === 'all' || (!deals.length && scope !== 'deals-forced')) { renderAllLive(r, deals.length); return; }
+  if (scope === 'all' || (!r.deals.length && scope !== 'deals-forced')) { renderAllLive(r, deals.length); return; }
   $('list').innerHTML = deals.length ? deals.map(d => dealCard(d, { saved: d.saved })).join('')
-    : `<div class="empty">Nothing under market right now${r.filters_applied ? ' that clears your settings' : ''}${kindFilter !== 'all' ? ` (${kindFilter === 'auction' ? 'auctions' : 'buy-now listings'} only)` : ''}.<br>${r.watched ? 'You\'ll be alerted when one shows up.' : `<button class="primary" style="margin-top:12px" onclick="watch(${r.product.id})">★ Watch this machine and alert me</button>`}</div>`;
+    : `<div class="empty">Nothing under market right now${r.filters_applied ? ' that clears your settings' : ''}${kindFilter !== 'all' ? ` (${kindFilter === 'auction' ? 'auctions' : 'buy-now listings'} only)` : ''}${whereFilter ? ' in that area' : ''}.<br>${r.watched ? 'You\'ll be alerted when one shows up.' : `<button class="primary" style="margin-top:12px" onclick="watch(${r.product.id})">★ Watch this machine and alert me</button>`}</div>`;
 }
 async function watch(id) { await api('/api/watchlists', { method: 'POST', body: { product_id: id } }); go(current, { keep: true }); }
 // "All live": every listing for the machine, with how it sits against normal, so a thin machine never shows an empty page
@@ -222,9 +242,10 @@ async function renderAllLive(r, dealCount) {
   $('list').innerHTML = why + '<div class="empty">Loading every live listing…</div>';
   try {
     const d = liveCache[name] || (liveCache[name] = await api('/api/search/machine?name=' + encodeURIComponent(name)));
-    let rows = [...d.listings].filter(l => kindFilter === 'all' || (kindFilter === 'auction' ? l.sale_type === 'auction' : l.sale_type !== 'auction'));
+    fillWhere(d.listings);
+    let rows = [...d.listings].filter(l => kindFilter === 'all' || (kindFilter === 'auction' ? l.sale_type === 'auction' : l.sale_type !== 'auction')).filter(whereMatch);
     const far = 8.64e15;
-    rows.sort({ price: (a, b) => a.price - b.price, ending: (a, b) => (a.auction_ends ? new Date(a.auction_ends) : far) - (b.auction_ends ? new Date(b.auction_ends) : far), newest: (a, b) => new Date(b.posted_date) - new Date(a.posted_date) }[sortBy] || ((a, b) => (a.vs_normal_pct ?? 999) - (b.vs_normal_pct ?? 999)));
+    rows.sort({ price: (a, b) => a.price - b.price, pricey: (a, b) => b.price - a.price, closest: (a, b) => (milesOf(a) ?? 1e9) - (milesOf(b) ?? 1e9), ending: (a, b) => (a.auction_ends ? new Date(a.auction_ends) : far) - (b.auction_ends ? new Date(b.auction_ends) : far), newest: (a, b) => new Date(b.posted_date) - new Date(a.posted_date) }[sortBy] || ((a, b) => (a.vs_normal_pct ?? 999) - (b.vs_normal_pct ?? 999)));
     const vs = (l) => l.vs_normal_pct == null ? '<span class="muted small">no comparison yet</span>' : l.vs_normal_pct <= -10 ? `<span class="small" style="color:var(--good)">${Math.abs(l.vs_normal_pct)}% under normal</span>` : l.vs_normal_pct >= 10 ? `<span class="small" style="color:var(--warn)">${l.vs_normal_pct}% over normal</span>` : `<span class="small muted">about normal (${l.vs_normal_pct > 0 ? '+' : ''}${l.vs_normal_pct}%)</span>`;
     $('list').innerHTML = why + `<div class="heading"><div class="small muted">${rows.length} live listing${rows.length === 1 ? '' : 's'}${d.normal ? ` · normal is ${money(d.normal)}` : ''}${dealCount ? ` · ${dealCount} of them are deals` : ''}</div></div>` +
       (rows.length ? rows.map(l => `<div class="card" onclick="cardTap(event,this)">
