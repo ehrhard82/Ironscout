@@ -200,7 +200,16 @@ function setKind(k, quiet) {
   for (const b of $('ld-kinds').querySelectorAll('[data-kind]')) b.classList.toggle('primary', b.dataset.kind === k);
   if (!['operator', 'carrier'].includes(k)) $('ld-more').value = k; else $('ld-more').value = '';
   for (const el of document.querySelectorAll('#pane-demand [data-for]')) el.style.display = (k === 'all' || el.dataset.for.split(' ').includes(k)) ? '' : 'none';
+  if (window.ldStates) fillStates();
   if (!quiet) loadLeads();
+}
+// state counts follow the category button (permit holders per state, or carriers per state), so the number means what it looks like
+function fillStates() {
+  const k = $('ld-kind').value, cur = $('ld-state').value, by = {};
+  for (const x of (window.ldStates || [])) if (k === 'all' || x.kind === k) by[x.st] = (by[x.st] || 0) + x.n;
+  const list = Object.entries(by).sort((a, b) => b[1] - a[1]);
+  $('ld-state').innerHTML = '<option value="">any state</option>' + list.map(([st, n]) => `<option value="${esc(st)}">${esc(st)} · ${n}</option>`).join('');
+  if ([...$('ld-state').options].some(o => o.value === cur)) $('ld-state').value = cur;
 }
 function fillCounties(r) {
   const st = $('ld-state').value, list = (window.ldCounties || []).filter(c => !st || c.st === st);
@@ -255,7 +264,7 @@ async function loadLeads() {
     const r = await api('/api/demand/leads?' + ldQuery());
     ldTeam = r.team; ldCanAssign = ['admin', 'broker'].includes((window.currentUser || {}).role);
     $('ld-meta').textContent = `· ${Object.entries(r.counts).map(([k, n]) => `${n} ${({ operator: 'permit holders', carrier: 'trucking/service', seller: 'sellers', newco: 'new companies', intake: 'from links', dealer: 'dealers' })[k] || k}`).join(', ') || 'none yet'}${r.mine ? ` · ${r.mine} on your plate` : ''}`;
-    if (!$('ld-state').dataset.filled && r.states && r.states.length) { $('ld-state').dataset.filled = '1'; $('ld-state').innerHTML = '<option value="">any state</option>' + r.states.map(x => `<option value="${esc(x.st)}">${esc(x.st)} · ${x.n}</option>`).join(''); }
+    if (r.states) { window.ldStates = r.states; fillStates(); }
     if (!window.ldCounties && r.counties.length) { window.ldCounties = r.counties; fillCounties(r); }
     if (!$('ld-assigned').dataset.filled) { $('ld-assigned').dataset.filled = '1'; $('ld-assigned').innerHTML += r.team.map(t => `<option value="${t.id}">${esc(t.name || t.email)}</option>`).join(''); $('ld-assign-to').innerHTML = '<option value="">— hand selected to —</option>' + r.team.map(t => `<option value="${t.id}">${esc(t.name || t.email)}</option>`).join('') + '<option value="0">(unassign)</option>'; }
     $('ld-bulk').style.display = ldCanAssign && r.leads.length ? 'flex' : 'none';
