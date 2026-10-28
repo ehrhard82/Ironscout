@@ -63,6 +63,17 @@ router.post('/logout', async (req, res, next) => {
   try { await auth.destroySession(req, res); res.json({ ok: true }); } catch (e) { next(e); }
 });
 
+// Page/tab opens, so the owner can see where people actually go. Once per page per 10 minutes per person.
+router.post('/seen', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not logged in' });
+  const page = String(req.body?.page || '').slice(0, 60);
+  if (!page) return res.json({ ok: true });
+  try {
+    const dup = await pool.query(`SELECT 1 FROM activity WHERE user_id = $1 AND action = 'opened' AND detail = $2 AND at > NOW() - interval '10 minutes' LIMIT 1`, [req.user.id, page]);
+    if (!dup.rows.length) require('../lib/activity').log(req.user, 'opened', page);
+  } catch {}
+  res.json({ ok: true });
+});
 router.get('/me', (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not logged in', login: true });
   res.json(req.user);

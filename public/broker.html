@@ -165,6 +165,7 @@ async function restoreListing(id) {
   try { await api(`/api/broker/listings/${id}/block`, { method: 'DELETE' }); await loadBlocked(); } catch (e) { alert(e.message); }
 }
 function showTab(t) {
+  seen('Broker board → ' + ({ deals: 'Deals to work', buyers: 'Buyers', followups: 'Follow-ups', demand: 'Find buyers', team: 'Your team' })[t]);
   for (const k of ['deals', 'buyers', 'followups', 'demand', 'team']) { $('pane-' + k).style.display = t === k ? '' : 'none'; $('tab-' + k).classList.toggle('on', t === k); }
   history.replaceState(null, '', '/broker.html' + (t === 'deals' ? '' : '#' + t));
   if (t === 'followups') loadFollowups();

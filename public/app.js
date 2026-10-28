@@ -28,7 +28,10 @@ async function requireUser() {
   return u;
 }
 
+// tell the server which page/tab is open (feeds the "What people are doing" log; deduped server-side)
+function seen(page) { try { fetch('/api/auth/seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page }), keepalive: true }); } catch {} }
 function renderHeader(user, active) {
+  seen({ '/': 'Deals', '/broker.html': 'Broker board', '/account.html': 'Settings', '/help.html': 'How it works', '/admin.html': 'Admin', '/status.html': 'Status', '/mine.html': 'My machines', '/listings.html': 'All listings' }[active] || active);
   const nav = [
     ['/', 'Deals'],
     ['/account.html', 'Settings'],
