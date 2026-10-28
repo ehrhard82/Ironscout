@@ -183,7 +183,8 @@ function showTab(t) {
 // ---- Find buyers tab ----
 async function loadDemand() {
   $('ld-go').onclick = loadLeads;
-  for (const id of ['ld-county', 'ld-days', 'ld-status', 'ld-assigned', 'ld-sort', 'ld-cargo', 'ld-trucks', 'ld-new', 'ld-focus']) $(id).onchange = loadLeads;
+  for (const id of ['ld-county', 'ld-days', 'ld-status', 'ld-assigned', 'ld-sort', 'ld-cargo', 'ld-trucks', 'ld-new']) $(id).onchange = loadLeads;
+  $('ld-focus').onchange = () => { fillStates(); loadLeads(); };
   $('ld-state').addEventListener('change', fillCounties);
   $('ld-kinds').onclick = (ev) => { const b = ev.target.closest('[data-kind]'); if (!b) return; setKind(b.dataset.kind); };
   $('ld-more').onchange = () => { if ($('ld-more').value) setKind($('ld-more').value); };
@@ -208,7 +209,8 @@ function setKind(k, quiet) {
 // state counts follow the category button (permit holders per state, or carriers per state), so the number means what it looks like
 function fillStates() {
   const k = $('ld-kind').value, cur = $('ld-state').value, by = {};
-  const want = (x) => k === 'all' || (k === 'service' ? x.kind === 'carrier' && x.segment === 'service' : k === 'trucking' ? x.kind === 'carrier' && x.segment !== 'service' : x.kind === k);
+  const oilOnly = $('ld-focus').value === 'oilfield' && $('ld-focus').style.display !== 'none';
+  const want = (x) => (!oilOnly || x.oilfield) && (k === 'all' || (k === 'service' ? x.kind === 'carrier' && x.segment === 'service' : k === 'trucking' ? x.kind === 'carrier' && x.segment !== 'service' : x.kind === k));
   for (const x of (window.ldStates || [])) if (want(x)) by[x.st] = (by[x.st] || 0) + x.n;
   const list = Object.entries(by).sort((a, b) => b[1] - a[1]);
   $('ld-state').innerHTML = '<option value="">any state</option>' + list.map(([st, n]) => `<option value="${esc(st)}">${esc(st)} · ${n}</option>`).join('');
